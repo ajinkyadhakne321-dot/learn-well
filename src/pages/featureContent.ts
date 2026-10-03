@@ -43,7 +43,7 @@ export const featurePages: Record<string, FeaturePageContent> = {
     ],
   },
   assistant: {
-    title: 'AI Assistant', eyebrow: 'STUDY SUPPORT', description: 'A future study companion for explaining, summarizing, and planning your learning.',
+    title: 'AI Assistant', eyebrow: 'STUDY SUPPORT', description: 'Talk to Learnwell like a study voice assistant. It can explain, summarize, open materials, and read your schedule out loud.',
     items: [
       { title: 'Explain a topic', detail: 'Ask for a clear, step-by-step explanation.', meta: 'Not connected' },
       { title: 'Make a study plan', detail: 'Break a subject into smaller study sessions.', meta: 'Not connected' },

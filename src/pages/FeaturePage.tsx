@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
 import { learningLessons, type LearningLessonSection } from '../data/learningLessonContent'
-import { learningMaterials } from '../data/mockLearningData'
+import { assignments, calendarEvents, learningMaterials } from '../data/mockLearningData'
 
 export type FeaturePageContent = {
   title: string
@@ -28,6 +28,7 @@ type AssistantContext = {
 }
 
 type AssistantMessage = { role: 'assistant' | 'user'; text: string }
+type VoicePhase = 'idle' | 'listening' | 'thinking' | 'speaking'
 
 type SpeechRecognitionAlternativeLike = { transcript: string }
 type SpeechRecognitionResultLike = {
@@ -226,6 +227,61 @@ function analyzeCurrentCode(context: AssistantContext | null, notes: StudentNote
   return `I checked the actual code in ${source.label}. ${loopDescription} I did not find an obvious issue in the checks I can perform here. This is a basic local check, not a full compiler, so run it to confirm its behavior.`
 }
 
+function normalizeSpokenText(value: string) {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function stripWakePhrase(value: string) {
+  return value
+    .replace(/^(hey |ok |okay |hi |hello )?(learnwell|assistant)\b[,!. ]*/i, '')
+    .trim()
+}
+
+function isEndSessionPhrase(value: string) {
+  return /^(stop( listening| voice)?|cancel( voice)?|never mind|nevermind|goodbye|good bye|bye|that's all|thats all|quit|go to sleep|hang up)$/i.test(value)
+}
+
+function isGreetingPhrase(value: string) {
+  return /^(hi|hello|hey|hey there|good morning|good afternoon|good evening)( there| learnwell| assistant)?[!?.]*$/i.test(value)
+}
+
+function describeUpcomingSchedule(relative: 'today' | 'tomorrow' | 'week' | 'calendar') {
+  const today = new Date()
+  today.setHours(12, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const weekEnd = new Date(today)
+  weekEnd.setDate(today.getDate() + 7)
+  const toKey = (date: Date) => date.toISOString().slice(0, 10)
+  const todayKey = toKey(today)
+  const tomorrowKey = toKey(tomorrow)
+
+  const matching = calendarEvents.filter((event) => {
+    if (relative === 'today') return event.date === todayKey
+    if (relative === 'tomorrow') return event.date === tomorrowKey
+    if (relative === 'week') return event.date >= todayKey && event.date <= toKey(weekEnd)
+    return true
+  }).sort((first, second) => first.date.localeCompare(second.date) || first.time.localeCompare(second.time))
+
+  const spoken = matching.map((event) => {
+    const label = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(`${event.date}T12:00:00`))
+    return `${event.title} on ${label} at ${event.time}`
+  })
+
+  if (relative === 'today') {
+    return spoken.length
+      ? `Today you have ${spoken.join(', and ')}.`
+      : 'You do not have a scheduled sample event today.'
+  }
+  if (relative === 'tomorrow') {
+    return spoken.length
+      ? `Tomorrow you have ${spoken.join(', and ')}.`
+      : 'You do not have a scheduled sample event tomorrow.'
+  }
+  if (!spoken.length) return 'I do not see upcoming sample events on your calendar.'
+  return `Your upcoming schedule includes ${spoken.join(', and ')}.`
+}
+
 function buildTutorAnswer(rawPrompt: string, context: AssistantContext | null, notes: StudentNotes) {
   const value = rawPrompt.toLowerCase()
   if (/(debug|error|fix|bug|issue|problem)/.test(value)) return analyzeCurrentCode(context, notes, rawPrompt)
@@ -249,13 +305,52 @@ function buildAssistantReply(
   context: AssistantContext | null,
   notes: StudentNotes,
   completedMaterials: string[],
+  completedAssignments: string[],
   navigate: ReturnType<typeof useNavigate>,
 ) {
-  const value = rawPrompt.toLowerCase().trim()
-  const asksToOpen = /\b(open|show|go to|view|launch)\b/.test(value)
+  const value = stripWakePhrase(rawPrompt.toLowerCase().trim())
+  const asksToOpen = /\b(open|show|go to|take me to|view|launch)\b/.test(value)
   const asksForNotes = /\bnotes?\b/.test(value)
 
-  if (/^(stop listening|stop voice|cancel voice)$/.test(value)) return 'Voice input stopped.'
+  if (isEndSessionPhrase(value)) return 'Okay. I will stop listening. Tap the voice button when you need me again.'
+  if (isGreetingPhrase(value) || /^(what'?s up|how are you)\b/.test(value)) {
+    return 'Hi, I am Learnwell, your study voice assistant. Ask me to open a lesson, explain a topic, continue studying, or check your schedule.'
+  }
+  if (/^(what can you do|what do you do|how do you work|your commands|help me( out)?)$/.test(value)) {
+    return 'You can talk to me like a study assistant. Try: open my notes, continue my lesson, explain this, debug this code, what is on my calendar today, or take me to the quiz.'
+  }
+  if (/^(thanks|thank you|thanks a lot|thank you so much)[!?.]*$/.test(value)) {
+    return 'You are welcome. What would you like to study next?'
+  }
+
+  if (/\b(calendar|schedule|agenda)\b/.test(value) || /\b(today|tomorrow)\b/.test(value) && /\b(class|event|due|quiz|assignment)\b/.test(value)) {
+    const relative = /\btomorrow\b/.test(value) ? 'tomorrow' : /\btoday\b/.test(value) ? 'today' : /\bweek\b/.test(value) ? 'week' : 'calendar'
+    if (asksToOpen || /\b(show|check|look|what|what'?s)\b/.test(value)) navigate('/calendar')
+    return describeUpcomingSchedule(relative)
+  }
+
+  if (asksToOpen && /\b(quiz|practice)\b/.test(value)) {
+    navigate('/quiz')
+    return 'Opening your practice quiz.'
+  }
+  if (asksToOpen && /\bassignments?\b/.test(value)) {
+    navigate('/assignments')
+    return 'Opening your assignments.'
+  }
+  if (asksToOpen && /\b(dashboard|home)\b/.test(value)) {
+    navigate('/')
+    return 'Taking you back to your dashboard.'
+  }
+  if (asksToOpen && /\bprogress\b/.test(value)) {
+    navigate('/progress')
+    return `You have completed ${completedMaterials.length} of ${learningMaterials.length} lessons and ${completedAssignments.length} of ${assignments.length} assignments.`
+  }
+  if (/\bprogress\b/.test(value) || /how am i doing/.test(value)) {
+    return `You have completed ${completedMaterials.length} of ${learningMaterials.length} lessons and ${completedAssignments.length} of ${assignments.length} assignments. Your sample study streak is 4 days.`
+  }
+  if (/\b(where am i|what am i studying|current lesson|what is this)\b/.test(value)) {
+    return describeCurrentContext(context, notes)
+  }
 
   if (asksToOpen && asksForNotes) {
     const note = findMatchingNote(value, notes)
@@ -354,20 +449,26 @@ export function FeaturePage({ page }: FeaturePageProps) {
   const isHelp = page.title === 'Help'
   const navigate = useNavigate()
   const location = useLocation()
-  const { notes, completedMaterials } = useStudentWorkspace()
+  const { notes, completedMaterials, completedAssignments } = useStudentWorkspace()
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const restartTimerRef = useRef<number | null>(null)
+  const silenceTimerRef = useRef<number | null>(null)
   const keepListeningRef = useRef(false)
+  const manualStopRef = useRef(false)
   const speakingReplyRef = useRef(false)
   const commandPendingRef = useRef(false)
   const recognitionEndedRef = useRef(true)
+  const finalTranscriptRef = useRef('')
+  const draftRef = useRef(assistantPrompts[0].sample)
+  const handleUtteranceRef = useRef<(text: string) => void>(() => {})
+  const resumeListeningRef = useRef<() => void>(() => {})
   const [selectedPrompt, setSelectedPrompt] = useState(assistantPrompts[0].title)
   const [draft, setDraft] = useState(assistantPrompts[0].sample)
-  const [statusText, setStatusText] = useState('Voice ready')
-  const [isListening, setIsListening] = useState(false)
+  const [statusText, setStatusText] = useState('Tap the orb and talk to me like a study assistant.')
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle')
+  const [liveTranscript, setLiveTranscript] = useState('')
   const [messages, setMessages] = useState<AssistantMessage[]>([
-    { role: 'assistant', text: 'Hi! I can help you explain a concept, continue a lesson, or debug the code you are studying.' },
-    { role: 'user', text: 'Open my current lesson' },
-    { role: 'assistant', text: 'I can do that. I will use your current learning context and open the most relevant material or note.' },
+    { role: 'assistant', text: 'Hi, I am Learnwell. Tap the orb and say something like “open my notes”, “explain this lesson”, or “what is on my calendar today?”' },
   ])
 
   const context = useMemo<AssistantContext | null>(() => {
@@ -385,42 +486,162 @@ export function FeaturePage({ page }: FeaturePageProps) {
 
     return () => {
       keepListeningRef.current = false
+      if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current)
+      if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current)
       recognitionRef.current?.stop()
       recognitionRef.current = null
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     }
   }, [isAssistant])
 
   function handlePromptSelect(title: string, sample: string) {
     setSelectedPrompt(title)
     setDraft(sample)
+    draftRef.current = sample
   }
 
   function submitPrompt(value: string, source: 'text' | 'voice' = 'text') {
     const prompt = value.trim()
     if (!prompt) return
 
-    const reply = buildAssistantReply(prompt, context, notes, completedMaterials, navigate)
+    const reply = buildAssistantReply(prompt, context, notes, completedMaterials, completedAssignments, navigate)
     setMessages((current) => [...current, { role: 'user', text: prompt }, { role: 'assistant', text: reply }])
-    setDraft('')
-    setSelectedPrompt('Custom question')
     if (source === 'voice') {
+      setDraft(prompt)
+      draftRef.current = prompt
       setStatusText('Voice command sent to the study assistant.')
+    } else {
+      setDraft('')
+      draftRef.current = ''
     }
+    setSelectedPrompt('Custom question')
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    submitPrompt(draft)
+    const nextValue = normalizeCommandText(draftRef.current)
+    if (!nextValue) return
+    submitPrompt(nextValue)
   }
 
-  function stopVoiceCapture() {
+  function normalizeCommandText(value: string) {
+    return normalizeSpokenText(value)
+  }
+
+  function clearVoiceTimers() {
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+  }
+
+  function chooseSpokenVoice() {
+    if (!('speechSynthesis' in window)) return undefined
+    const voices = window.speechSynthesis.getVoices()
+    return voices.find((voice) => /en[-_]US/i.test(voice.lang) && /Google|Samantha|Natural|Premium/i.test(voice.name))
+      ?? voices.find((voice) => voice.lang.toLowerCase().startsWith('en'))
+  }
+
+  function speakReply(text: string, resumeListening: boolean) {
+    commandPendingRef.current = false
+    if (!('speechSynthesis' in window)) {
+      speakingReplyRef.current = false
+      if (resumeListening && keepListeningRef.current) resumeListeningRef.current()
+      else {
+        setVoicePhase('idle')
+        setStatusText('Tap the orb when you want to talk again.')
+      }
+      return
+    }
+
+    speakingReplyRef.current = true
+    setVoicePhase('speaking')
+    setStatusText('Speaking… tap the orb to interrupt.')
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1.04
+    utterance.pitch = 1
+    const voice = chooseSpokenVoice()
+    if (voice) utterance.voice = voice
+    utterance.onend = () => {
+      speakingReplyRef.current = false
+      if (resumeListening && keepListeningRef.current) resumeListeningRef.current()
+      else {
+        setVoicePhase('idle')
+        setStatusText('Tap the orb when you want to talk again.')
+      }
+    }
+    utterance.onerror = () => {
+      speakingReplyRef.current = false
+      if (resumeListening && keepListeningRef.current) resumeListeningRef.current()
+      else setVoicePhase('idle')
+    }
+    window.speechSynthesis.speak(utterance)
+  }
+
+  function handleCompletedUtterance(rawPrompt: string) {
+    const prompt = stripWakePhrase(normalizeCommandText(rawPrompt))
+    if (!prompt || commandPendingRef.current) return
+
+    commandPendingRef.current = true
+    finalTranscriptRef.current = ''
+    setLiveTranscript('')
+    setVoicePhase('thinking')
+    setStatusText('Thinking…')
+    recognitionRef.current?.stop()
+
+    const keepGoing = !isEndSessionPhrase(prompt)
+    if (!keepGoing) keepListeningRef.current = false
+
+    const reply = buildAssistantReply(prompt, context, notes, completedMaterials, completedAssignments, navigate)
+    setMessages((current) => [...current, { role: 'user', text: prompt }, { role: 'assistant', text: reply }])
+    setDraft(prompt)
+    draftRef.current = prompt
+    setSelectedPrompt('Custom question')
+    speakReply(reply, keepGoing)
+  }
+  handleUtteranceRef.current = handleCompletedUtterance
+
+  function queueUtterance(text: string) {
+    if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current)
+    silenceTimerRef.current = window.setTimeout(() => {
+      silenceTimerRef.current = null
+      handleUtteranceRef.current(text)
+    }, 850)
+  }
+
+  function stopVoiceSession() {
+    manualStopRef.current = true
     keepListeningRef.current = false
     speakingReplyRef.current = false
     commandPendingRef.current = false
+    finalTranscriptRef.current = ''
+    clearVoiceTimers()
     recognitionRef.current?.stop()
-    recognitionRef.current = null
-    setIsListening(false)
-    setStatusText('Voice input stopped. Press Voice command to start again.')
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    setVoicePhase('idle')
+    setLiveTranscript('')
+    setStatusText('Okay. I stopped listening. Tap the orb when you need me again.')
+  }
+
+  function handleVoiceOrbPress() {
+    if (voicePhase === 'thinking') return
+    if (voicePhase === 'speaking') {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+      speakingReplyRef.current = false
+      keepListeningRef.current = true
+      startVoiceCapture()
+      return
+    }
+    if (voicePhase === 'listening') {
+      stopVoiceSession()
+      return
+    }
+    startVoiceCapture()
   }
 
   function startVoiceCapture() {
@@ -435,133 +656,139 @@ export function FeaturePage({ page }: FeaturePageProps) {
     }).webkitSpeechRecognition
 
     if (!Recognition) {
-      setStatusText('Voice recognition is not supported in this browser.')
+      setStatusText('Voice recognition is not supported in this browser. Try Chrome or Edge.')
       return
     }
 
-    if (recognitionRef.current && keepListeningRef.current) {
-      stopVoiceCapture()
-      return
-    }
-
-    const recognition = new Recognition()
+    manualStopRef.current = false
+    keepListeningRef.current = true
+    commandPendingRef.current = false
+    finalTranscriptRef.current = ''
+    setLiveTranscript('')
+    const recognition = recognitionRef.current ?? new Recognition()
     recognition.lang = 'en-US'
     recognition.interimResults = true
     recognition.continuous = true
     recognition.onstart = () => {
       keepListeningRef.current = true
       recognitionEndedRef.current = false
-      setIsListening(true)
-      setStatusText('Listening for your command…')
+      setVoicePhase('listening')
+      setStatusText('Listening… speak naturally, then pause when you are done.')
     }
     recognition.onresult = (event: SpeechRecognitionEventLike) => {
-      if (commandPendingRef.current) return
+      if (commandPendingRef.current || speakingReplyRef.current) return
 
       const results = Array.from(event.results)
-      const lastResult = results[results.length - 1]
-      const transcript = lastResult ? Array.from(lastResult).map((item) => item.transcript).join(' ').trim() : ''
-      const finalTranscript = transcript && (!lastResult || !('isFinal' in lastResult) || lastResult.isFinal)
-        ? transcript
-        : ''
-
-      if (!finalTranscript) {
-        if (transcript) {
-          setDraft(transcript)
-          setStatusText('Listening… I heard a prompt and am preparing to send it.')
-        }
-        return
+      let finalChunk = ''
+      let interimChunk = ''
+      for (const result of results) {
+        const text = Array.from(result).map((item) => item.transcript).join(' ').trim()
+        if (result.isFinal) finalChunk = normalizeCommandText(`${finalChunk} ${text}`)
+        else interimChunk = text
       }
 
-      commandPendingRef.current = true
-      setDraft(finalTranscript)
+      if (finalChunk) finalTranscriptRef.current = finalChunk
+      const live = normalizeCommandText(`${finalTranscriptRef.current} ${interimChunk}`)
+      if (!live) return
+
+      setLiveTranscript(live)
+      setDraft(live)
+      draftRef.current = live
       setSelectedPrompt('Custom question')
-      setStatusText('Command heard. Sending it to the study assistant…')
+      setStatusText('Listening…')
 
-      if (/^(stop listening|stop voice|cancel voice)$/i.test(finalTranscript)) {
-        keepListeningRef.current = false
-        setStatusText('Voice input stopped. Press Voice command to start again.')
-        recognition.stop()
+      const spoken = stripWakePhrase(live)
+      if (isEndSessionPhrase(spoken)) {
+        handleUtteranceRef.current(spoken)
         return
       }
 
-      keepListeningRef.current = false
-      recognition.stop()
-
-      window.setTimeout(() => {
-        submitPrompt(finalTranscript, 'voice')
-
-        const reply = buildAssistantReply(finalTranscript, context, notes, completedMaterials, navigate)
-        if ('speechSynthesis' in window) {
-          speakingReplyRef.current = true
-          setIsListening(false)
-          setStatusText('Speaking the response.')
-          const utterance = new SpeechSynthesisUtterance(reply)
-          utterance.rate = 0.94
-          utterance.pitch = 1
-          utterance.onend = () => {
-            speakingReplyRef.current = false
-            commandPendingRef.current = false
-            setIsListening(false)
-            setStatusText('Voice ready')
-            recognitionRef.current = null
-          }
-          window.speechSynthesis.cancel()
-          window.speechSynthesis.speak(utterance)
-        } else {
-          commandPendingRef.current = false
-          setIsListening(false)
-          setStatusText('Voice ready')
-        }
-      }, 150)
+      if (finalChunk && !interimChunk) queueUtterance(finalChunk)
     }
     recognition.onerror = (event) => {
       const error = typeof event === 'object' && event !== null && 'error' in event
         ? String((event as { error: unknown }).error)
         : ''
       if (error === 'no-speech') {
-        setStatusText('I did not hear a command. Press Voice command to try again.')
-        keepListeningRef.current = false
-        setIsListening(false)
+        setStatusText('Still listening. Ask me anything when you are ready.')
         return
       }
-      if (keepListeningRef.current) {
-        keepListeningRef.current = false
-        commandPendingRef.current = false
-        setStatusText(error === 'not-allowed' || error === 'service-not-allowed'
-          ? 'Microphone access is blocked. Allow microphone access in your browser, then try again.'
-          : 'Voice input stopped. Press Voice command to start again.')
-        setIsListening(false)
+      if (error === 'not-allowed' || error === 'service-not-allowed' || error === 'audio-capture') {
+        stopVoiceSession()
+        setStatusText(error === 'audio-capture'
+          ? 'No microphone is available. Connect or enable a microphone, then try again.'
+          : 'Microphone access is blocked. Allow microphone access in your browser, then try again.')
+        return
       }
+      setStatusText('Voice connection interrupted. Reconnecting…')
     }
     recognition.onend = () => {
       recognitionEndedRef.current = true
-      if (speakingReplyRef.current) {
-        setIsListening(false)
-        return
-      }
-      if (!keepListeningRef.current) {
-        commandPendingRef.current = false
-        setIsListening(false)
-        setStatusText('Voice ready')
+      if (speakingReplyRef.current || commandPendingRef.current) return
+
+      if (manualStopRef.current) {
+        setVoicePhase('idle')
         recognitionRef.current = null
         return
       }
-      setIsListening(false)
-      setStatusText('Voice command ended. Press Voice command to start again.')
-      recognitionRef.current = null
+
+      if (keepListeningRef.current) {
+        setVoicePhase('listening')
+        const scheduleRestart = () => {
+          restartTimerRef.current = window.setTimeout(() => {
+            restartTimerRef.current = null
+            if (manualStopRef.current || !keepListeningRef.current || speakingReplyRef.current) return
+            try {
+              recognitionRef.current?.start()
+            } catch {
+              setStatusText('Reconnecting… keep talking after the orb is listening again.')
+              scheduleRestart()
+            }
+          }, 280)
+        }
+        scheduleRestart()
+      }
     }
 
     recognitionRef.current = recognition
-    keepListeningRef.current = true
-    setIsListening(true)
+    setVoicePhase('listening')
     setStatusText('Requesting microphone access…')
     try {
       recognition.start()
     } catch {
-      keepListeningRef.current = false
-      setIsListening(false)
-      setStatusText('Voice input is already active. Please wait a moment and try again.')
-      recognitionRef.current = null
+      setStatusText('Reconnecting…')
+      const retryStart = () => {
+        restartTimerRef.current = window.setTimeout(() => {
+          restartTimerRef.current = null
+          if (manualStopRef.current || !keepListeningRef.current || speakingReplyRef.current) return
+          try {
+            recognitionRef.current?.start()
+          } catch {
+            retryStart()
+          }
+        }, 600)
+      }
+      retryStart()
+    }
+  }
+
+  resumeListeningRef.current = () => {
+    if (!keepListeningRef.current || manualStopRef.current) {
+      setVoicePhase('idle')
+      return
+    }
+    finalTranscriptRef.current = ''
+    setLiveTranscript('')
+    setVoicePhase('listening')
+    setStatusText('I’m listening for a follow-up. Tap the orb or say “stop” to hang up.')
+    if (recognitionEndedRef.current && recognitionRef.current) {
+      try {
+        recognitionRef.current.start()
+      } catch {
+        startVoiceCapture()
+      }
+    } else if (!recognitionRef.current) {
+      startVoiceCapture()
     }
   }
 
@@ -573,7 +800,7 @@ export function FeaturePage({ page }: FeaturePageProps) {
       {isAssistant && (
         <div className="notice-block">
           <Sparkles size={20} aria-hidden="true" />
-          <p>This AI agent uses your current lesson and note context and can respond to natural voice commands.</p>
+          <p>Tap the orb and talk hands-free. Learnwell listens, answers out loud, then keeps listening for a follow-up—like a study voice assistant.</p>
         </div>
       )}
       {isHelp && <div className="notice-block"><CircleHelp size={20} aria-hidden="true" /><p>For this prototype, support details are examples and do not send a message.</p></div>}
@@ -590,8 +817,32 @@ export function FeaturePage({ page }: FeaturePageProps) {
             <ul className="assistant-metrics" aria-label="Study assistant overview">
               <li><strong>{learningMaterials.length}</strong><span>materials</span></li>
               <li><strong>{notes.length}</strong><span>notes</span></li>
-              <li><strong>{isListening ? 'Listening' : 'Ready'}</strong><span>voice</span></li>
+              <li><strong>{voicePhase === 'idle' ? 'Ready' : voicePhase === 'listening' ? 'Listening' : voicePhase === 'thinking' ? 'Thinking' : 'Speaking'}</strong><span>voice</span></li>
             </ul>
+          </div>
+
+          <div className="voice-bot" aria-label="Learnwell voice assistant">
+            <button
+              type="button"
+              className={`voice-orb ${voicePhase}`}
+              onClick={handleVoiceOrbPress}
+              aria-pressed={voicePhase !== 'idle'}
+              aria-label={
+                voicePhase === 'listening' ? 'Stop listening'
+                  : voicePhase === 'speaking' ? 'Interrupt and listen'
+                    : voicePhase === 'thinking' ? 'Learnwell is thinking'
+                      : 'Start talking to Learnwell'
+              }
+            >
+              <Mic size={28} aria-hidden="true" />
+            </button>
+            <p className="voice-bot-label">{
+              voicePhase === 'listening' ? 'Listening'
+                : voicePhase === 'thinking' ? 'Thinking'
+                  : voicePhase === 'speaking' ? 'Speaking'
+                    : 'Tap to talk'
+            }</p>
+            <p className="voice-caption" aria-live="polite">{liveTranscript || statusText}</p>
           </div>
 
           <div className="assistant-actions" aria-label="Suggested prompts">
@@ -605,25 +856,15 @@ export function FeaturePage({ page }: FeaturePageProps) {
                 {title}
               </button>
             ))}
-            <button type="button" className={isListening ? 'assistant-chip selected' : 'assistant-chip'} onClick={isListening ? stopVoiceCapture : startVoiceCapture} aria-pressed={isListening}>
-              {isListening ? <><Mic size={14} aria-hidden="true" /> Stop listening</> : <><Mic size={14} aria-hidden="true" /> Voice command</>}
+            <button type="button" className={voicePhase === 'listening' ? 'assistant-chip selected' : 'assistant-chip'} onClick={handleVoiceOrbPress} aria-pressed={voicePhase !== 'idle'}>
+              {voicePhase === 'listening' ? <><Mic size={14} aria-hidden="true" /> Hang up</> : <><Mic size={14} aria-hidden="true" /> Talk to Learnwell</>}
             </button>
             <button type="button" className="assistant-chip" onClick={() => {
               const response = describeCurrentContext(context, notes)
               setMessages((current) => [...current, { role: 'assistant', text: response }])
-              if (keepListeningRef.current) {
-                keepListeningRef.current = false
-                commandPendingRef.current = false
-                recognitionRef.current?.stop()
-                recognitionRef.current = null
-                setIsListening(false)
-                setStatusText('Voice input paused while reading aloud. Select Voice command to continue.')
-              }
-              if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(response)
-                window.speechSynthesis.cancel()
-                window.speechSynthesis.speak(utterance)
-              }
+              keepListeningRef.current = false
+              recognitionRef.current?.stop()
+              speakReply(response, false)
             }}>
               <Volume2 size={14} aria-hidden="true" /> Read aloud
             </button>
@@ -646,8 +887,11 @@ export function FeaturePage({ page }: FeaturePageProps) {
               id="assistant-input"
               rows={3}
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Examples: Open my notes, continue my last lesson, explain this, debug this code..."
+              onChange={(event) => {
+                setDraft(event.target.value)
+                draftRef.current = event.target.value
+              }}
+              placeholder="Ask out loud or type: Open my notes, continue my last lesson, explain this, what’s on my calendar today…"
             />
             <button type="submit" className="button button-primary">
               <SendHorizonal size={15} aria-hidden="true" />
