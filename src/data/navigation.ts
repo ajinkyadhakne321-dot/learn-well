@@ -1,0 +1,30 @@
+import {
+  BookOpen,
+  CalendarDays,
+  CircleHelp,
+  ClipboardCheck,
+  FileText,
+  Gauge,
+  House,
+  LibraryBig,
+  LogOut,
+  Settings2,
+  Sparkles,
+  UserRound,
+} from 'lucide-react'
+
+export const navigationItems = [
+  { label: 'Dashboard', path: '/', icon: House },
+  { label: 'Subjects', path: '/subjects', icon: BookOpen },
+  { label: 'Learning Materials', path: '/materials', icon: LibraryBig },
+  { label: 'Notes', path: '/notes', icon: FileText },
+  { label: 'Assignments', path: '/assignments', icon: ClipboardCheck },
+  { label: 'Quiz', path: '/quiz', icon: ClipboardCheck },
+  { label: 'AI Assistant', path: '/assistant', icon: Sparkles },
+  { label: 'Calendar', path: '/calendar', icon: CalendarDays },
+  { label: 'Progress', path: '/progress', icon: Gauge },
+  { label: 'Profile', path: '/profile', icon: UserRound },
+  { label: 'Accessibility Settings', path: '/accessibility', icon: Settings2 },
+  { label: 'Help', path: '/help', icon: CircleHelp },
+  { label: 'Logout', path: '/logout', icon: LogOut },
+] as const
