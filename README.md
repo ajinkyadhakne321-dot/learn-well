@@ -81,7 +81,7 @@ npm run build
 npm run lint
 ```
 
-Student pages require a signed-in account. The dashboard, subjects, materials, notes, assignments, quiz, assistant, calendar, progress, profile, accessibility settings, and help retain their existing routes and interface. Learning content and progress are still sample/in-memory data; only student accounts and sessions are stored in PostgreSQL.
+Student pages require a signed-in account. The dashboard, subjects, materials, notes, assignments, quiz, calendar, progress, profile, accessibility settings, and help retain their existing routes and interface. Learning content and progress are still sample/in-memory data; only student accounts and sessions are stored in PostgreSQL.
 
 The interface retains keyboard navigation, visible focus, semantic forms, and screen-reader announcements for authentication errors and pending states. Manual testing with assistive technology and a configured PostgreSQL database is still recommended.
 # learn-well

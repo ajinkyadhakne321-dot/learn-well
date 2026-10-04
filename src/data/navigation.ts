@@ -9,7 +9,6 @@ import {
   LibraryBig,
   LogOut,
   Settings2,
-  Sparkles,
   UserRound,
 } from 'lucide-react'
 
@@ -20,7 +19,6 @@ export const navigationItems = [
   { label: 'Notes', path: '/notes', icon: FileText },
   { label: 'Assignments', path: '/assignments', icon: ClipboardCheck },
   { label: 'Quiz', path: '/quiz', icon: ClipboardCheck },
-  { label: 'AI Assistant', path: '/assistant', icon: Sparkles },
   { label: 'Calendar', path: '/calendar', icon: CalendarDays },
   { label: 'Progress', path: '/progress', icon: Gauge },
   { label: 'Profile', path: '/profile', icon: UserRound },

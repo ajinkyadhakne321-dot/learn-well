@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Check, FileText, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -59,17 +59,6 @@ export function NotesPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const selectedNote = notes.find((note) => note.id === selectedId) ?? null
-
-  useEffect(() => {
-    if (!selectedNote) return
-    window.localStorage.setItem('learnwell:assistant-context', JSON.stringify({
-      route: '/notes',
-      noteId: selectedNote.id,
-      noteTitle: selectedNote.title,
-      subject: selectedNote.subject,
-      summary: selectedNote.content.slice(0, 180),
-    }))
-  }, [selectedNote])
 
   function handleSave(note: StudentNote) {
     saveNote(note)

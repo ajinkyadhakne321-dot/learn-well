@@ -8,7 +8,6 @@ import {
   Headphones,
   MessageCircle,
   Play,
-  Sparkles,
 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
@@ -65,16 +64,6 @@ export function DashboardPage() {
           <Link to="/assignments" className="quick-link"><CalendarClock aria-hidden="true" /><span>Due this week</span><ArrowRight aria-hidden="true" /></Link>
           <Link to="/notes" className="quick-link"><FileText aria-hidden="true" /><span>My notes</span><ArrowRight aria-hidden="true" /></Link>
         </div>
-      </section>
-
-      <section className="assistant-panel" aria-labelledby="assistant-heading">
-        <div className="assistant-icon" aria-hidden="true"><Sparkles size={22} /></div>
-        <div className="assistant-copy">
-          <p className="eyebrow">YOUR STUDY COMPANION</p>
-          <h2 id="assistant-heading">AI Study Assistant</h2>
-          <p>Get a simpler explanation, a quick summary, or a study plan for your next topic.</p>
-        </div>
-        <Link className="button button-light" to="/assistant">Open assistant <ArrowRight size={16} aria-hidden="true" /></Link>
       </section>
 
       <div className="dashboard-grid">

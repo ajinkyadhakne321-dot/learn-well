@@ -42,14 +42,6 @@ export const featurePages: Record<string, FeaturePageContent> = {
       { title: 'Cell structures', detail: 'Biology · 6 questions', meta: 'Practice' },
     ],
   },
-  assistant: {
-    title: 'AI Assistant', eyebrow: 'STUDY SUPPORT', description: 'Talk to Learnwell like a study voice assistant. It can explain, summarize, open materials, and read your schedule out loud.',
-    items: [
-      { title: 'Explain a topic', detail: 'Ask for a clear, step-by-step explanation.', meta: 'Not connected' },
-      { title: 'Make a study plan', detail: 'Break a subject into smaller study sessions.', meta: 'Not connected' },
-      { title: 'Summarize material', detail: 'Review key ideas from a lesson or reading.', meta: 'Not connected' },
-    ],
-  },
   calendar: {
     title: 'Calendar', eyebrow: 'YOUR SCHEDULE', description: 'A simple view of the next few learning milestones.',
     items: [

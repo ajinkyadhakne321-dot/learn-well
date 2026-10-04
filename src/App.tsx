@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { RequireAuth, RedirectAuthenticated } from './components/RequireAuth'
 import { AuthProvider } from './context/AuthProvider'
@@ -29,7 +29,7 @@ function App() {
               <Route path="notes" element={<NotesPage />} />
               <Route path="assignments" element={<AssignmentsPage />} />
               <Route path="quiz" element={<QuizPage />} />
-              <Route path="assistant" element={<FeaturePage page={featurePages.assistant} />} />
+              <Route path="assistant" element={<Navigate to="/" replace />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="progress" element={<ProgressPage />} />
               <Route path="profile" element={<ProfilePage />} />

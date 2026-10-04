@@ -7,13 +7,14 @@
     "dev": "vite",
     "server:dev": "tsx watch server/src/index.ts",
     "build": "npm run server:build && tsc -b && vite build",
-    "server:build": "tsc -p server/tsconfig.json",
+    "server:build": "tsc -p server/tsconfig.json && node -e \"fs.copyFileSync('server/src/db/schema.sql', 'server/dist/db/schema.sql')\"",
     "server:start": "node server/dist/index.js",
     "db:migrate": "tsx server/src/db/migrate.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.2",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",

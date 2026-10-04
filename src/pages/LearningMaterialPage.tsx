@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { useEffect } from 'react'
+import { ArrowLeft, ArrowRight, Square, Volume2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { learningLessons, type LessonBlock } from '../data/learningLessonContent'
@@ -18,50 +18,61 @@ function LessonContent({ block }: { block: LessonBlock }) {
 export function LearningMaterialPage() {
   const { materialId } = useParams()
   const lesson = materialId ? learningLessons[materialId] : undefined
+  const [readingSectionId, setReadingSectionId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!materialId || !lesson) return
-    const activeLesson = lesson
+  function stopReading() {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    setReadingSectionId(null)
+  }
 
-    function saveSectionContext(sectionId: string) {
-      const section = activeLesson.sections.find((item) => item.id === sectionId)
-      if (!section) return
-      const code = section.blocks.find((block) => block.type === 'code')
-
-      window.localStorage.setItem('learnwell:assistant-context', JSON.stringify({
-        route: `/materials/${materialId}`,
-        materialId,
-        sectionId: section.id,
-        title: activeLesson.title,
-        subject: activeLesson.subject,
-        sectionTitle: section.title,
-        code: code?.type === 'code' ? code.code : undefined,
-        summary: activeLesson.introduction,
-      }))
+  function toggleReadAloud(sectionId: string, title: string, blocks: LessonBlock[]) {
+    if (readingSectionId === sectionId) {
+      stopReading()
+      return
     }
 
-    const initialSectionId = window.location.hash.slice(1)
-    saveSectionContext(activeLesson.sections.some((section) => section.id === initialSectionId)
-      ? initialSectionId
-      : activeLesson.sections[0]?.id ?? '')
+    if (!('speechSynthesis' in window)) return
 
-    if (!('IntersectionObserver' in window)) return
+    window.speechSynthesis.cancel()
+    setReadingSectionId(sectionId)
 
-    const observer = new IntersectionObserver((entries) => {
-      const visibleSection = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((first, second) => first.boundingClientRect.top - second.boundingClientRect.top)[0]
-      const sectionId = visibleSection?.target.id
-      if (sectionId) saveSectionContext(sectionId)
-    }, { rootMargin: '-15% 0px -65% 0px' })
+    const textToSpeak = `${title}. ` + blocks
+      .map((b) => (b.type === 'paragraph' ? b.text : b.type === 'list' ? b.items.join('. ') : ''))
+      .filter(Boolean)
+      .join(' ')
 
-    activeLesson.sections.forEach((section) => {
-      const element = document.getElementById(section.id)
-      if (element) observer.observe(element)
-    })
+    const utterance = new SpeechSynthesisUtterance(textToSpeak)
+    utterance.rate = 1.0
+    utterance.pitch = 1.0
 
-    return () => observer.disconnect()
-  }, [lesson, materialId])
+    const voices = window.speechSynthesis.getVoices()
+    const preferredVoice = voices.find(
+      (v) => /Google|Samantha|Daniel|Natural|Premium/i.test(v.name) && v.lang.startsWith('en')
+    ) ?? voices.find((v) => v.lang.startsWith('en'))
+    if (preferredVoice) utterance.voice = preferredVoice
+
+    utterance.onend = () => setReadingSectionId(null)
+    utterance.onerror = () => setReadingSectionId(null)
+
+    window.speechSynthesis.speak(utterance)
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && readingSectionId) {
+        stopReading()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [readingSectionId])
 
   if (!lesson) return <Navigate to="/materials" replace />
 
@@ -83,7 +94,27 @@ export function LearningMaterialPage() {
           const next = lesson.sections[index + 1]
           return (
             <section className="lesson-section" id={section.id} key={section.id} aria-labelledby={`${section.id}-heading`}>
-              <h2 id={`${section.id}-heading`} tabIndex={-1}>{section.title}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <h2 id={`${section.id}-heading`} tabIndex={-1} style={{ margin: 0, paddingBottom: 0, border: 'none' }}>{section.title}</h2>
+                <button
+                  type="button"
+                  className={`read-aloud-btn ${readingSectionId === section.id ? 'active-reading' : ''}`}
+                  onClick={() => toggleReadAloud(section.id, section.title, section.blocks)}
+                  aria-label={readingSectionId === section.id ? `Stop reading ${section.title} aloud` : `Read ${section.title} aloud`}
+                >
+                  {readingSectionId === section.id ? (
+                    <>
+                      <Square size={13} fill="currentColor" aria-hidden="true" />
+                      <span>Stop Read Aloud</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 size={13} aria-hidden="true" />
+                      <span>Read Section Aloud</span>
+                    </>
+                  )}
+                </button>
+              </div>
               {section.audioUrl && (
                 <div className="lesson-audio-recording">
                   <p>Listen to this section</p>
