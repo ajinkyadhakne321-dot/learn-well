@@ -10,6 +10,7 @@ const environmentSchema = z.object({
   DATABASE_SSL: z.string().default('false').transform((value) => value === 'true'),
   SESSION_SECRET: z.string().min(32),
   CLIENT_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
+  GEMINI_API_KEY: z.string().optional(),
 })
 
 const parsedEnvironment = environmentSchema.safeParse(process.env)
@@ -26,4 +27,5 @@ export const env = {
   databaseSsl: parsedEnvironment.data.DATABASE_SSL,
   sessionSecret: parsedEnvironment.data.SESSION_SECRET,
   clientOrigins: parsedEnvironment.data.CLIENT_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
+  geminiApiKey: parsedEnvironment.data.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
 }

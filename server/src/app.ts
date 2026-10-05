@@ -10,6 +10,7 @@ import { pool } from './db/pool.js'
 import { errorHandler, HttpError } from './middleware/errorHandler.js'
 import { authRouter } from './routes/auth.routes.js'
 import { healthRouter } from './routes/health.routes.js'
+import { assistantRouter } from './routes/assistant.routes.js'
 
 const require = createRequire(import.meta.url)
 const session = require('express-session') as (options?: SessionOptions) => RequestHandler
@@ -48,5 +49,6 @@ app.use(session({
 
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)
+app.use('/api/assistant', assistantRouter)
 app.use('/api', (_request, _response, next) => next(new HttpError(404, 'API route not found')))
 app.use(errorHandler)

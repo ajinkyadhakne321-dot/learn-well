@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Menu, Search, X } from 'lucide-react'
+import { Menu, Mic, Search, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { navigationItems } from '../data/navigation'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
+import { VoiceAssistantModal } from './VoiceAssistantModal'
 import '../platform.css'
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const mainRef = useRef<HTMLElement>(null)
   const menuToggleRef = useRef<HTMLButtonElement>(null)
@@ -16,6 +18,18 @@ export function AppShell() {
   const navigate = useNavigate()
   const { profile, preferences } = useStudentWorkspace()
   const profileInitials = profile.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+
+  // Global hotkey: Alt + A (or Option + A) toggles voice assistant
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.altKey && (event.key === 'a' || event.key === 'A' || event.code === 'KeyA')) {
+        event.preventDefault()
+        setAssistantOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     if (previousPath.current === location.pathname) return
@@ -111,6 +125,17 @@ export function AppShell() {
               />
               <button type="submit" aria-label="Search learning content"><span className="search-button-text">Search</span><Search size={15} aria-hidden="true" /></button>
             </form>
+            <button
+              type="button"
+              className="topbar-assistant-button"
+              onClick={() => setAssistantOpen(true)}
+              aria-label="Open AI Voice Assistant (Shortcut: Alt+A)"
+              title="Open AI Voice Assistant (Alt+A)"
+            >
+              <Mic size={16} aria-hidden="true" />
+              <span className="assistant-btn-label">Voice Assistant</span>
+              <kbd className="assistant-kbd-tag">Alt+A</kbd>
+            </button>
             <Link className="student-profile" to="/profile" aria-label={`Open profile for ${profile.name}`}>
               <span className="profile-initials" aria-hidden="true">{profileInitials}</span>
               <span className="profile-name">{profile.name}</span>
@@ -125,6 +150,10 @@ export function AppShell() {
           </footer>
         </div>
       </div>
+      <VoiceAssistantModal
+        isOpen={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+      />
     </>
   )
 }

@@ -9,11 +9,13 @@ import {
   LibraryBig,
   LogOut,
   Settings2,
+  Sparkles,
   UserRound,
 } from 'lucide-react'
 
 export const navigationItems = [
   { label: 'Dashboard', path: '/', icon: House },
+  { label: 'AI Voice Assistant', path: '/assistant', icon: Sparkles },
   { label: 'Subjects', path: '/subjects', icon: BookOpen },
   { label: 'Learning Materials', path: '/materials', icon: LibraryBig },
   { label: 'Notes', path: '/notes', icon: FileText },
