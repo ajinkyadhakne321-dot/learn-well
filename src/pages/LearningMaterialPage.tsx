@@ -1,8 +1,10 @@
-import { ArrowLeft, ArrowRight, Square, Volume2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, FileText, Square, Volume2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
+import { useStudentWorkspace } from '../context/StudentWorkspaceState'
 import { learningLessons, type LessonBlock } from '../data/learningLessonContent'
+import { learningMaterials } from '../data/mockLearningData'
 
 function LessonContent({ block }: { block: LessonBlock }) {
   if (block.type === 'paragraph') return <p>{block.text}</p>
@@ -17,7 +19,9 @@ function LessonContent({ block }: { block: LessonBlock }) {
 
 export function LearningMaterialPage() {
   const { materialId } = useParams()
+  const { completedMaterials, toggleMaterial } = useStudentWorkspace()
   const lesson = materialId ? learningLessons[materialId] : undefined
+  const material = materialId ? learningMaterials.find((item) => item.id === materialId) : undefined
   const [readingSectionId, setReadingSectionId] = useState<string | null>(null)
 
   function stopReading() {
@@ -73,6 +77,77 @@ export function LearningMaterialPage() {
       }
     }
   }, [readingSectionId])
+
+
+  if (material?.fileUrl && !lesson) {
+    const isComplete = materialId ? completedMaterials.includes(materialId) : false
+    return (
+      <div className="feature-page lesson-page pdf-page">
+        <Link className="back-link lesson-back-link" to={`/materials?subject=${encodeURIComponent(material.subject)}`}>
+          <ArrowLeft size={15} aria-hidden="true" /> Back to {material.subject} materials
+        </Link>
+        <PageHeader
+          eyebrow={`${material.subject.toUpperCase()} · PDF DOCUMENT`}
+          title={material.title}
+          description={material.description}
+        />
+        <div className="pdf-viewer-toolbar">
+          <div className="pdf-viewer-meta">
+            <span className="feature-list-icon" aria-hidden="true"><FileText size={18} /></span>
+            <span>{material.format} · {material.duration}</span>
+          </div>
+          <div className="pdf-viewer-actions">
+            <a
+              className="button button-outline"
+              href={material.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Open ${material.title} PDF in a new tab`}
+            >
+              <ExternalLink size={15} aria-hidden="true" /> Open in new tab
+            </a>
+            <a
+              className="button button-outline"
+              href={material.fileUrl}
+              download
+              aria-label={`Download ${material.title} PDF`}
+            >
+              <Download size={15} aria-hidden="true" /> Download PDF
+            </a>
+            <button
+              type="button"
+              className={isComplete ? 'button button-outline is-selected' : 'button button-outline'}
+              aria-pressed={isComplete}
+              onClick={() => toggleMaterial(material.id)}
+            >
+              {isComplete ? <><Check size={16} aria-hidden="true" /> Completed</> : 'Mark complete'}
+            </button>
+          </div>
+        </div>
+
+        <div className="pdf-viewer-container" aria-label={`PDF Document: ${material.title}`}>
+          <object
+            data={material.fileUrl}
+            type="application/pdf"
+            className="pdf-viewer-frame"
+            aria-label={material.title}
+          >
+            <div className="pdf-viewer-fallback">
+              <p>Your browser does not support inline PDF viewing.</p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '12px' }}>
+                <a className="button button-primary" href={material.fileUrl} target="_blank" rel="noopener noreferrer">
+                  Open PDF in new tab
+                </a>
+                <a className="button button-outline" href={material.fileUrl} download>
+                  Download PDF
+                </a>
+              </div>
+            </div>
+          </object>
+        </div>
+      </div>
+    )
+  }
 
   if (!lesson) return <Navigate to="/materials" replace />
 

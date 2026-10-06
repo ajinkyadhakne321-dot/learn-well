@@ -33,8 +33,31 @@ assistantRouter.get('/status', (_req, res) => {
       'READ_ALOUD',
       'ANSWER_QUIZ',
       'SPEAK',
+      'LOAD_QUIZ',
     ],
   })
+})
+
+const quizRequestSchema = z.object({
+  subject: z.string().min(1).max(200),
+})
+
+assistantRouter.post('/generate-quiz', async (req, res, next) => {
+  try {
+    const parseResult = quizRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+      res.status(400).json({ error: 'Subject is required to generate a quiz' })
+      return
+    }
+
+    const { subject } = parseResult.data
+    const { generateQuizForSubject } = await import('../services/quizGeneratorService.js')
+    const quiz = await generateQuizForSubject(subject)
+
+    res.json(quiz)
+  } catch (error) {
+    next(error)
+  }
 })
 
 assistantRouter.post('/chat', async (req, res, next) => {

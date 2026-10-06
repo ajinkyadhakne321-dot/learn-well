@@ -1,7 +1,7 @@
 import { useState, type PropsWithChildren } from 'react'
 import { initialNotes, type StudentNote } from '../data/mockLearningData'
 import { useAuth } from './AuthContext'
-import { StudentWorkspaceContext, type AccessibilityPreferences, type StudentProfile } from './StudentWorkspaceState'
+import { StudentWorkspaceContext, type AccessibilityPreferences, type StudentProfile, type ActiveQuizState } from './StudentWorkspaceState'
 
 export function StudentWorkspaceProvider({ children }: PropsWithChildren) {
   const { user } = useAuth()
@@ -15,6 +15,7 @@ export function StudentWorkspaceProvider({ children }: PropsWithChildren) {
     underlineLinks: false,
     strongerFocus: false,
   })
+  const [activeQuiz, setActiveQuiz] = useState<ActiveQuizState | null>(null)
 
   const defaultProfile: StudentProfile = {
     name: user?.name ?? 'Alex Morgan',
@@ -59,6 +60,8 @@ export function StudentWorkspaceProvider({ children }: PropsWithChildren) {
       updateProfile,
       preferences,
       updatePreferences: setPreferences,
+      activeQuiz,
+      setActiveQuiz,
     }}>
       {children}
     </StudentWorkspaceContext.Provider>

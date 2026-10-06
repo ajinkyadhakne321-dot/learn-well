@@ -7,7 +7,6 @@ import {
   Sparkles,
   Send,
   FilePlus,
-  BookOpen,
   Calendar,
   Layers,
   ArrowRight,
@@ -59,7 +58,7 @@ export function AssistantPage() {
 
   const location = useLocation()
   const navigate = useNavigate()
-  const { notes, saveNote, preferences, updatePreferences, profile } = useStudentWorkspace()
+  const { notes, saveNote, preferences, updatePreferences, profile, setActiveQuiz } = useStudentWorkspace()
 
   const recognitionRef = useRef<ISpeechRecognition | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -95,6 +94,18 @@ export function AssistantPage() {
         if (action.target) {
           navigate(action.target)
           announce(`Navigating to ${action.label || action.target}`)
+        }
+        break
+
+      case 'LOAD_QUIZ':
+        if (action.questions && action.questions.length > 0) {
+          setActiveQuiz({
+            subject: action.subject || 'Practice',
+            title: action.title || 'Practice Quiz',
+            questions: action.questions,
+          })
+          announce(`Created quiz: ${action.title || 'Practice Quiz'}. Navigating to Quiz page.`)
+          navigate('/quiz')
         }
         break
 
@@ -380,9 +391,23 @@ export function AssistantPage() {
             <button
               type="button"
               className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Explain loops in Python')}
+              onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
             >
-              <BookOpen size={14} aria-hidden="true" /> "Explain Python loops"
+              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Software Engineering"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Quiz me on Python loops')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Python loops"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Create a quiz on Statistics')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Statistics"
             </button>
             <button
               type="button"
@@ -411,13 +436,6 @@ export function AssistantPage() {
               onClick={() => handleSendMessage('Turn on high contrast')}
             >
               <HelpCircle size={14} aria-hidden="true" /> "Enable high contrast"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('What is an algorithm?')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "What is an algorithm?"
             </button>
           </div>
         </div>

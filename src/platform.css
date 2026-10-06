@@ -228,6 +228,95 @@ progress::-moz-progress-bar { background: #26705c; }
 .quiz-result h2 { font-size: calc(25px * var(--text-scale, 1)); }
 .quiz-result p { margin: 0; }
 .result-icon { display: grid; width: 43px; height: 43px; place-items: center; color: #fff; background: var(--forest); border-radius: 50%; }
+
+.quiz-generator-toolbar {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f4f8f6;
+  border: 1px solid #c9d8d1;
+  border-radius: 6px;
+}
+.quiz-generator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.quiz-generator-header h3 {
+  margin: 0;
+  font-size: calc(15px * var(--text-scale, 1));
+  color: var(--forest);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quiz-subjects-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quiz-subject-btn {
+  padding: 8px 14px;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 600;
+  border: 1px solid #9fb3a9;
+  background: #fff;
+  color: #1a332a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.quiz-subject-btn:hover {
+  background: #e4efeb;
+  border-color: var(--teal);
+}
+.quiz-subject-btn.active {
+  background: var(--forest);
+  color: #fff;
+  border-color: var(--forest);
+}
+.quiz-subject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.quiz-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #d8ece4;
+  color: #0b382c;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+.quiz-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.quiz-listen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 600;
+  background: #f0f5f2;
+  border: 1px solid #9db5a9;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.quiz-listen-btn:hover {
+  background: #e1ede7;
+}
 .calendar-panel { max-width: 780px; }
 .calendar-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .calendar-heading-row h2 { margin: 0; font-size: calc(22px * var(--text-scale, 1)); }
@@ -390,6 +479,19 @@ progress::-moz-progress-bar { background: #26705c; }
   .lesson-outline ol { grid-template-columns: 1fr; }
   .lesson-code-example pre { padding: 12px; }
 }
+
+/* PDF Document Viewer Styles */
+.pdf-page { max-width: 1000px; }
+.pdf-viewer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 18px; margin: 20px 0 24px; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+.pdf-viewer-meta { display: flex; align-items: center; gap: 10px; color: #35473f; font-size: calc(14px * var(--text-scale, 1)); font-weight: 600; }
+.pdf-viewer-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pdf-viewer-container { position: relative; width: 100%; min-height: 750px; background: #f8faf8; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05); }
+.pdf-viewer-frame { display: block; width: 100%; height: 80vh; min-height: 750px; border: none; }
+.pdf-viewer-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; color: #263d34; }
+.pdf-viewer-fallback p { font-size: calc(15px * var(--text-scale, 1)); margin: 0 0 16px; }
+
+[data-high-contrast="true"] .pdf-viewer-toolbar,
+[data-high-contrast="true"] .pdf-viewer-container { border: 2px solid #000; background: #fff; }
 
 /* ==========================================================
    AI VOICE ASSISTANT STYLES (Accessibility-First Design)

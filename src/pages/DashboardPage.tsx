@@ -77,6 +77,9 @@ export function DashboardPage() {
               {filteredLearning.map((material) => {
                 const isComplete = completedMaterials.includes(material.id)
                 const Icon = material.format === 'Audio lesson' ? Headphones : material.format === 'Practice set' ? BookOpen : FileText
+                const openHref = material.fileUrl || material.id === 'material-1'
+                  ? `/materials/${material.id}`
+                  : `/materials?subject=${encodeURIComponent(material.subject)}`
                 return (
                 <li className="learning-item" key={material.id}>
                   <span className="item-icon" aria-hidden="true"><Icon size={19} /></span>
@@ -84,7 +87,7 @@ export function DashboardPage() {
                     <h3>{material.title}</h3>
                     <p>{material.subject} <span aria-hidden="true">·</span> {material.format} · {material.duration}</p>
                   </div>
-                  <div className="learning-action"><span>{isComplete ? 'Completed' : 'In progress'}</span><Link to={`/materials?subject=${encodeURIComponent(material.subject)}`} aria-label={`Open ${material.title}`}>Open <Play size={14} fill="currentColor" aria-hidden="true" /></Link><button type="button" aria-pressed={isComplete} onClick={() => toggleMaterial(material.id)}>{isComplete ? 'Undo' : 'Mark complete'}</button></div>
+                  <div className="learning-action"><span>{isComplete ? 'Completed' : 'In progress'}</span><Link to={openHref} aria-label={`Open ${material.title}`}>Open <Play size={14} fill="currentColor" aria-hidden="true" /></Link><button type="button" aria-pressed={isComplete} onClick={() => toggleMaterial(material.id)}>{isComplete ? 'Undo' : 'Mark complete'}</button></div>
                 </li>
                 )
               })}
@@ -119,7 +122,7 @@ export function DashboardPage() {
               {filteredAssignments.map((assignment) => (
                 <li className="upcoming-item" key={assignment.id}>
                   <span className="item-icon small-icon" aria-hidden="true">{assignment.type === 'Quiz' ? <Check size={17} /> : <FileText size={17} />}</span>
-                  <div><span className="item-type">{completedAssignments.includes(assignment.id) ? 'Completed' : assignment.type}</span><h3>{assignment.title}</h3><p><Clock3 size={13} aria-hidden="true" /><time dateTime={assignment.dueAt}>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(assignment.dueAt))}</time></p></div>
+                  <div><span className="item-type">{completedAssignments.includes(assignment.id) ? 'Completed' : assignment.type}</span><h3>{assignment.fileUrl ? <a href={assignment.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{assignment.title}</a> : assignment.title}</h3><p><Clock3 size={13} aria-hidden="true" /><time dateTime={assignment.dueAt}>{new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(assignment.dueAt))}</time></p></div>
                 </li>
               ))}
               {filteredAssignments.length === 0 && <li className="empty-state">No matching upcoming work.</li>}

@@ -66,7 +66,7 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
 
   const location = useLocation()
   const navigate = useNavigate()
-  const { notes, saveNote, preferences, updatePreferences, profile } = useStudentWorkspace()
+  const { notes, saveNote, preferences, updatePreferences, profile, setActiveQuiz } = useStudentWorkspace()
 
   const recognitionRef = useRef<ISpeechRecognition | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -119,6 +119,19 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
           navigate(action.target)
           announce(`Navigated to ${action.label || action.target}`)
           // Close modal on navigation if user asked to go somewhere
+          setTimeout(() => onClose(), 600)
+        }
+        break
+
+      case 'LOAD_QUIZ':
+        if (action.questions && action.questions.length > 0) {
+          setActiveQuiz({
+            subject: action.subject || 'Practice',
+            title: action.title || 'Practice Quiz',
+            questions: action.questions,
+          })
+          navigate('/quiz')
+          announce(`Loaded quiz: ${action.title || 'Practice Quiz'}. Navigating to Quiz page.`)
           setTimeout(() => onClose(), 600)
         }
         break
@@ -467,6 +480,20 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
         <div className="assistant-quick-prompts" aria-label="Suggested voice commands">
           <p className="prompts-label">Try asking:</p>
           <div className="prompts-grid">
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> Quiz me: SE
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Quiz me on Python loops')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> Quiz me: Python
+            </button>
             <button
               type="button"
               className="quick-prompt-chip"

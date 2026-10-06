@@ -1,5 +1,12 @@
+export interface QuizQuestionItem {
+  prompt: string
+  answers: string[]
+  correctAnswer: number
+  explanation: string
+}
+
 export interface AssistantAction {
-  type: 'NAVIGATE' | 'CREATE_NOTE' | 'SET_ACCESSIBILITY' | 'READ_ALOUD' | 'ANSWER_QUIZ' | 'SPEAK'
+  type: 'NAVIGATE' | 'CREATE_NOTE' | 'SET_ACCESSIBILITY' | 'READ_ALOUD' | 'ANSWER_QUIZ' | 'SPEAK' | 'LOAD_QUIZ'
   target?: string
   label?: string
   title?: string
@@ -12,6 +19,7 @@ export interface AssistantAction {
   text?: string
   answerIndex?: number
   explanation?: string
+  questions?: QuizQuestionItem[]
 }
 
 export interface AssistantApiResponse {
@@ -62,4 +70,20 @@ export async function fetchAssistantStatus(): Promise<{
     throw new Error('Failed to retrieve assistant status')
   }
   return res.json()
+}
+
+export async function generateAssistantQuiz(subject: string): Promise<{
+  subject: string
+  title: string
+  questions: QuizQuestionItem[]
+}> {
+  const response = await fetch('/api/assistant/generate-quiz', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to generate quiz')
+  }
+  return response.json()
 }

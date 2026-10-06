@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { env } from '../config/env.js'
+import { searchSyllabus, buildOfflineSyllabusAnswer } from './syllabusKnowledgeService.js'
+import { generateQuizForSubject, type GeneratedQuizQuestion } from './quizGeneratorService.js'
 
 export type AssistantAction =
   | { type: 'NAVIGATE'; target: string; label: string }
@@ -8,6 +10,12 @@ export type AssistantAction =
   | { type: 'READ_ALOUD'; text: string }
   | { type: 'ANSWER_QUIZ'; answerIndex: number; explanation: string }
   | { type: 'SPEAK'; text: string }
+  | {
+      type: 'LOAD_QUIZ'
+      subject: string
+      title: string
+      questions: GeneratedQuizQuestion[]
+    }
 
 export interface AssistantResponse {
   spokenText: string
@@ -30,27 +38,38 @@ export interface AssistantContext {
 }
 
 const SYSTEM_PROMPT = `You are "LearnWell Voice Assistant", an AI co-pilot designed specifically for students who are blind or visually impaired.
-Your primary job is to help the student navigate this learning platform, manage their studies, take notes, and understand learning material orally.
+Your primary job is to help the student navigate this learning platform, manage their studies, take notes, understand learning material orally, and generate interactive quizzes on demand.
 
 Rules for your voice output:
 1. Output concise, pleasant, natural spoken English. Blind students listen to audio output at high speeds.
 2. NEVER use markdown tables, asterisks, hash headers, or ASCII drawings because screen readers will stumble over them.
 3. Be direct, clear, and reassuring.
-4. When a student asks to go somewhere or do an action, respond with JSON matching this structure:
+4. When a student asks to go somewhere or perform an action, respond with JSON matching this structure:
 {
   "spokenText": "Clear verbal confirmation and helpful summary",
   "action": {
-    "type": "NAVIGATE" | "CREATE_NOTE" | "SET_ACCESSIBILITY" | "READ_ALOUD" | "ANSWER_QUIZ" | "SPEAK",
+    "type": "NAVIGATE" | "CREATE_NOTE" | "SET_ACCESSIBILITY" | "READ_ALOUD" | "ANSWER_QUIZ" | "SPEAK" | "LOAD_QUIZ",
     ...action properties
   }
 }
 
+Quiz Generation Rules:
+- When the student asks to create a quiz or be quizzed on a subject (e.g., "Create a quiz on Software Engineering", "Quiz me on Python"), generate 3 to 4 multiple-choice questions grounded in their course notes and return action {"type": "LOAD_QUIZ", "subject": "...", "title": "...", "questions": [{"prompt": "...", "answers": ["..."], "correctAnswer": 0, "explanation": "..."}]}.
+- When a student asks if you can create quizzes, confirm enthusiastically and explain they can ask you anytime for quizzes on Software Engineering, Machine Learning, Statistics, Python, or Cloud Computing.
+
 Available routes for NAVIGATE action:
 - "/" (Dashboard)
-- "/subjects" (Subjects list: Python, Statistics, Data Structures, AI/ML)
+- "/subjects" (Subjects list: Python, Statistics, Data Structures, AI/ML, Software Engineering)
 - "/materials" (Learning materials and lessons)
 - "/materials/material-1" (Python Loops lesson)
 - "/materials/material-2" (Frequency Distribution lesson)
+- "/materials/material-stat-unit-1" (Unit I: Introduction to Statistics PDF)
+- "/materials/material-stat-unit-2" (Unit II: Measures of Central Tendency and Dispersion PDF)
+- "/materials/material-se-unit-1" (Unit I: Introduction to Software Engineering PDF)
+- "/materials/material-se-unit-2" (Unit II: Software Requirements Engineering PDF)
+- "/materials/material-aiml-unit-2" (Unit II: Machine Learning Techniques & Algorithms PDF)
+- "/materials/material-aiml-unit-3" (Unit III: AI Techniques for Software Testing PDF)
+- "/materials/material-aiml-cloud" (Fundamentals of Cloud Computing PDF)
 - "/materials/material-3" (Algorithm fundamentals)
 - "/materials/material-4" (Linear Regression)
 - "/notes" (Student's saved notes)
@@ -68,7 +87,43 @@ export async function processAssistantMessage(
 ): Promise<AssistantResponse> {
   const query = userMessage.trim()
 
-  // 1. Try Gemini Generative AI if API key is configured
+  // 1. Direct Query: Can AI create quizzes?
+  const isCanQuizQuery =
+    /\b(can|could|would)\s+(you|ai|the assistant|voice assistant)?\s*(create|make|generate)\s+(a\s+)?(quiz|quize|quizes|quzes|tests?)\b/i.test(query) ||
+    (/\b(can|could)\s+ai\s+do\s+it\b/i.test(query) && /quiz/i.test(query)) ||
+    /want ai assistant to create quize/i.test(query) ||
+    /create quize when it is asked/i.test(query)
+
+  if (isCanQuizQuery) {
+    return {
+      spokenText: `Yes, absolutely! I can generate custom interactive practice quizzes on any subject in your syllabus whenever you ask. You can say "Create a quiz on Software Engineering", "Quiz me on Machine Learning", "Create a quiz on Statistics", "Quiz me on Python loops", or "Quiz me on Cloud Computing". I will generate the questions and guide you through them. Would you like me to create a quiz for you now?`,
+      provider: 'offline-agent',
+    }
+  }
+
+  // 2. Direct Quiz Generation Intent (creates interactive quiz on demand)
+  const isQuizGenRequest =
+    /\b(create|make|generate|start|give me|load)\s+(a\s+)?(practice\s+)?(quiz|quize|quizes|quzes|tests?)\b/i.test(query) ||
+    /\bquiz me\b/i.test(query) ||
+    /\btest me\b/i.test(query)
+
+  if (isQuizGenRequest) {
+    const generated = await generateQuizForSubject(query, query)
+    return {
+      spokenText: `I have generated a ${generated.title} with ${generated.questions.length} questions based on your syllabus. Opening your quiz now. Question 1: ${generated.questions[0].prompt}`,
+      action: {
+        type: 'LOAD_QUIZ',
+        subject: generated.subject,
+        title: generated.title,
+        questions: generated.questions,
+      },
+      provider: env.geminiApiKey ? 'gemini' : 'offline-agent',
+    }
+  }
+
+  const syllabusMatches = searchSyllabus(query, context.currentPath, 3)
+
+  // 3. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
     try {
       const genAI = new GoogleGenerativeAI(env.geminiApiKey)
@@ -81,12 +136,20 @@ export async function processAssistantMessage(
         systemInstruction: SYSTEM_PROMPT,
       })
 
+      let syllabusContextText = ''
+      if (syllabusMatches.length > 0) {
+        syllabusContextText = `\nOfficial Syllabus & Course Notes Excerpts:\n` + syllabusMatches.map((m) =>
+          `[Document: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`
+        ).join('\n\n') + `\n\nIf the student is asking about syllabus concepts or course topics, answer accurately using these official notes. If relevant, set action to NAVIGATE to target "/materials/${syllabusMatches[0].materialId}" with label "${syllabusMatches[0].title}".`
+      }
+
       const prompt = `Current Context:
 - Active Route: ${context.currentPath || '/'}
 - Page Title: ${context.pageTitle || 'Dashboard'}
 - Student Name: ${context.studentName || 'Student'}
 - Notes Count: ${context.notesCount ?? 0}
 - Pending Assignments: ${context.pendingAssignmentsCount ?? 3}
+${syllabusContextText}
 
 Student voice input: "${query}"`
 
@@ -112,13 +175,14 @@ Student voice input: "${query}"`
     }
   }
 
-  // 2. Intelligent Built-in Accessibility NLU Engine
-  return processOfflineAccessibilityIntent(query, context)
+  // 2. Intelligent Built-in Accessibility NLU Engine with Syllabus Knowledge Base
+  return processOfflineAccessibilityIntent(query, context, syllabusMatches)
 }
 
 function processOfflineAccessibilityIntent(
   query: string,
-  context: AssistantContext
+  context: AssistantContext,
+  syllabusMatches: import('./syllabusKnowledgeService.js').SyllabusMatch[] = []
 ): AssistantResponse {
   const lower = query.toLowerCase()
 
@@ -288,6 +352,22 @@ function processOfflineAccessibilityIntent(
     return {
       spokenText: 'I am your LearnWell Voice Assistant. You can tell me to: Navigate to any page like Notes or Quiz, take voice notes, read lessons aloud, check upcoming deadlines, and adjust accessibility options like high contrast. Press Escape at any time to stop audio playback, or press Alt plus A to toggle listening.',
       provider: 'offline-agent',
+    }
+  }
+
+  // Syllabus & Course Content Q&A (Matches all uploaded PDFs and course materials)
+  if (syllabusMatches && syllabusMatches.length > 0) {
+    const syllabusAnswer = buildOfflineSyllabusAnswer(query, syllabusMatches)
+    if (syllabusAnswer) {
+      return {
+        spokenText: syllabusAnswer.spokenText,
+        action: {
+          type: 'NAVIGATE',
+          target: `/materials/${syllabusAnswer.materialId}`,
+          label: syllabusAnswer.title,
+        },
+        provider: 'offline-agent',
+      }
     }
   }
 

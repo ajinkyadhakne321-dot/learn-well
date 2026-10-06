@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BookOpen, Check, Headphones, LibraryBig } from 'lucide-react'
+import { BookOpen, Check, FileText, Headphones, LibraryBig } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
 import { assignments, learningMaterials, subjects } from '../data/mockLearningData'
@@ -62,13 +62,33 @@ export function LearningMaterialsPage() {
         {visibleMaterials.map((material) => {
           const isComplete = completedMaterials.includes(material.id)
           const lesson = learningLessons[material.id]
+          const isPdf = Boolean(material.fileUrl)
+          const hasDetail = Boolean(lesson || isPdf)
+          const Icon = material.format === 'Audio lesson' ? Headphones : isPdf ? FileText : LibraryBig
           return (
             <li key={material.id}>
-              <span className="feature-list-icon" aria-hidden="true">{material.format === 'Audio lesson' ? <Headphones size={19} /> : <LibraryBig size={19} />}</span>
-              <div className="interactive-list-copy"><h2>{lesson ? <Link className="lesson-title-link" to={`/materials/${material.id}`}>{material.title}</Link> : material.title}</h2><p>{material.description}</p><span>{material.subject} · {material.format} · {material.duration}</span></div>
-              <button className={isComplete ? 'button button-outline is-selected' : 'button button-outline'} type="button" aria-pressed={isComplete} onClick={() => toggleMaterial(material.id)}>
-                {isComplete ? <><Check size={16} aria-hidden="true" /> Completed</> : 'Mark complete'}
-              </button>
+              <span className="feature-list-icon" aria-hidden="true"><Icon size={19} /></span>
+              <div className="interactive-list-copy">
+                <h2>{hasDetail ? <Link className="lesson-title-link" to={`/materials/${material.id}`}>{material.title}</Link> : material.title}</h2>
+                <p>{material.description}</p>
+                <span>{material.subject} · {material.format} · {material.duration}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {isPdf && material.fileUrl && (
+                  <a
+                    className="button button-outline"
+                    href={material.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${material.title} PDF directly in new tab`}
+                  >
+                    View PDF
+                  </a>
+                )}
+                <button className={isComplete ? 'button button-outline is-selected' : 'button button-outline'} type="button" aria-pressed={isComplete} onClick={() => toggleMaterial(material.id)}>
+                  {isComplete ? <><Check size={16} aria-hidden="true" /> Completed</> : 'Mark complete'}
+                </button>
+              </div>
             </li>
           )
         })}
@@ -101,11 +121,52 @@ export function AssignmentsPage() {
         {visibleAssignments.map((assignment) => {
           const isComplete = completedAssignments.includes(assignment.id)
           const dueDate = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(assignment.dueAt))
+          const isPdf = Boolean(assignment.fileUrl)
           return (
             <li key={assignment.id}>
-              <span className="feature-list-icon" aria-hidden="true"><Check size={19} /></span>
-              <div className="interactive-list-copy"><h2>{assignment.title}</h2><p>{assignment.subject} · {assignment.type}</p><span><time dateTime={assignment.dueAt}>Due {dueDate}</time></span></div>
-              <button className={isComplete ? 'button button-outline is-selected' : 'button button-primary'} type="button" aria-pressed={isComplete} onClick={() => toggleAssignment(assignment.id)}>{isComplete ? 'Mark to do' : 'Mark complete'}</button>
+              <span className="feature-list-icon" aria-hidden="true">
+                {isComplete ? <Check size={19} /> : isPdf ? <FileText size={19} /> : <Check size={19} />}
+              </span>
+              <div className="interactive-list-copy">
+                <h2>
+                  {isPdf && assignment.fileUrl ? (
+                    <a
+                      href={assignment.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="lesson-title-link"
+                      aria-label={`Open ${assignment.title} PDF in new tab`}
+                    >
+                      {assignment.title}
+                    </a>
+                  ) : (
+                    assignment.title
+                  )}
+                </h2>
+                <p>{assignment.subject} · {assignment.type}{assignment.description ? ` · ${assignment.description}` : ''}</p>
+                <span><time dateTime={assignment.dueAt}>Due {dueDate}</time></span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {isPdf && assignment.fileUrl && (
+                  <a
+                    className="button button-outline"
+                    href={assignment.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`View PDF for ${assignment.title} in new tab`}
+                  >
+                    View PDF
+                  </a>
+                )}
+                <button
+                  className={isComplete ? 'button button-outline is-selected' : 'button button-primary'}
+                  type="button"
+                  aria-pressed={isComplete}
+                  onClick={() => toggleAssignment(assignment.id)}
+                >
+                  {isComplete ? 'Mark to do' : 'Mark complete'}
+                </button>
+              </div>
             </li>
           )
         })}

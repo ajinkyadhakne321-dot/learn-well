@@ -10,6 +10,17 @@ export type AccessibilityPreferences = {
 
 export type StudentProfile = { name: string; email: string; grade: string; preferredFormat: string }
 
+export interface ActiveQuizState {
+  subject: string
+  title: string
+  questions: Array<{
+    prompt: string
+    answers: string[]
+    correctAnswer: number
+    explanation: string
+  }>
+}
+
 export type StudentWorkspaceValue = {
   completedMaterials: string[]
   toggleMaterial: (id: string) => void
@@ -22,6 +33,8 @@ export type StudentWorkspaceValue = {
   updateProfile: (profile: StudentProfile) => void
   preferences: AccessibilityPreferences
   updatePreferences: (preferences: AccessibilityPreferences) => void
+  activeQuiz: ActiveQuizState | null
+  setActiveQuiz: (quiz: ActiveQuizState | null) => void
 }
 
 export const StudentWorkspaceContext = createContext<StudentWorkspaceValue | null>(null)
