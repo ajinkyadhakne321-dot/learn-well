@@ -135,7 +135,7 @@ export function searchSyllabus(query: string, currentPath?: string, maxResults: 
         if (pageLower.includes(token)) {
           const regex = new RegExp(`\\b${token}\\b`, 'gi')
           const count = (pageLower.match(regex) || []).length
-          score += 4 + Math.min(count * 2, 8)
+          score += 5 + Math.min(count * 3, 15)
         }
       }
 
@@ -144,7 +144,8 @@ export function searchSyllabus(query: string, currentPath?: string, maxResults: 
       if (docSubjectMatch) score += 10
       if (docTitleMatch) score += 10
 
-      if (score > 12) {
+      const minScore = rawTokens.length === 1 ? 7 : 10
+      if (score >= minScore) {
         // Find best snippet around first matched token
         let bestIndex = -1
         for (const token of rawTokens) {

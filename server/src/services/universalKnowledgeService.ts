@@ -30,6 +30,20 @@ const CURATED_KNOWLEDGE: Record<string, string> = {
     'Machine learning is a branch of artificial intelligence focused on building algorithms that learn patterns from data and improve their performance over time without being explicitly programmed.',
   'internet':
     'The Internet is a global system of interconnected computer networks that uses the Internet protocol suite to communicate between billions of devices worldwide.',
+  'saas':
+    'Software as a Service, or SaaS, is a cloud computing service model where applications are hosted by a provider and made available to users over the internet, typically through a web browser with no installation needed. Common examples include Gmail, Google Drive, Microsoft 365, and Salesforce.',
+  'software as a service':
+    'Software as a Service, or SaaS, is a cloud computing service model where applications are hosted by a provider and made available to users over the internet, typically through a web browser with no installation needed. Common examples include Gmail, Google Drive, Microsoft 365, and Salesforce.',
+  'paas':
+    'Platform as a Service, or PaaS, is a cloud computing model providing a platform and development environment that allows developers to build, run, and manage applications without managing servers or storage. Examples include Google App Engine, AWS Elastic Beanstalk, and Heroku.',
+  'platform as a service':
+    'Platform as a Service, or PaaS, is a cloud computing model providing a platform and development environment that allows developers to build, run, and manage applications without managing servers or storage. Examples include Google App Engine, AWS Elastic Beanstalk, and Heroku.',
+  'iaas':
+    'Infrastructure as a Service, or IaaS, is a cloud computing model providing virtualized computing resources such as physical servers, storage, and networking over the internet. Examples include Amazon Web Services EC2, Microsoft Azure VMs, and Google Compute Engine.',
+  'infrastructure as a service':
+    'Infrastructure as a Service, or IaaS, is a cloud computing model providing virtualized computing resources such as physical servers, storage, and networking over the internet. Examples include Amazon Web Services EC2, Microsoft Azure VMs, and Google Compute Engine.',
+  'cloud computing':
+    'Cloud computing is the on-demand delivery of computing services, including servers, storage, databases, networking, software, and analytics, over the internet with pay-as-you-go pricing.',
 }
 
 /**
@@ -77,7 +91,7 @@ async function fetchWikipediaSummary(topic: string): Promise<UniversalAnswer | n
           .replace(/\s+/g, ' ')
           .trim()
 
-        // Take the first 2 sentences for pleasant spoken audio
+        // Take the first 2-3 sentences for pleasant spoken audio
         const sentences = cleanExtract.split(/(?<=[.!?])\s+/)
         const conciseAudio = sentences.slice(0, 3).join(' ')
 
@@ -90,8 +104,8 @@ async function fetchWikipediaSummary(topic: string): Promise<UniversalAnswer | n
       }
     }
 
-    // 2. If direct lookup failed, try search query to find canonical page
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(topic)}&limit=1&namespace=0&format=json`
+    // 2. If direct lookup was a disambiguation or failed, use Wikipedia search to find the canonical article
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&utf8=&format=json`
     const searchRes = await fetch(searchUrl, {
       signal: controller.signal,
       headers: {
@@ -101,14 +115,19 @@ async function fetchWikipediaSummary(topic: string): Promise<UniversalAnswer | n
     })
 
     if (searchRes.ok) {
-      const searchData = (await searchRes.json()) as [string, string[], string[], string[]]
-      const canonicalTitle = searchData[1]?.[0]
-      if (canonicalTitle && canonicalTitle.toLowerCase() !== topic.toLowerCase()) {
-        return fetchWikipediaSummary(canonicalTitle)
+      const searchData = (await searchRes.json()) as {
+        query?: {
+          search?: Array<{ title: string; snippet: string }>
+        }
+      }
+
+      const topResult = searchData.query?.search?.[0]
+      if (topResult && topResult.title && topResult.title.toLowerCase() !== topic.toLowerCase()) {
+        return fetchWikipediaSummary(topResult.title)
       }
     }
   } catch {
-    // Network failure or timeout - fallback to curated concepts
+    // Network failure or timeout - handled by fallback
   } finally {
     clearTimeout(timeoutId)
   }

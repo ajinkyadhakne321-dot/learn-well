@@ -176,9 +176,8 @@ export async function processAssistantMessage(
     }
   }
 
-  // Only perform syllabus matching if the query mentions syllabus, course notes, unit, or learning materials
-  const isCourseSpecific = /\b(syllabus|course|unit|notes|chapter|pdf|lecture|textbook|curriculum)\b/i.test(query)
-  const syllabusMatches = isCourseSpecific ? searchSyllabus(query, context.currentPath, 3) : []
+  // Search syllabus knowledge base for course topics
+  const syllabusMatches = searchSyllabus(query, context.currentPath, 3)
 
   // 4. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
