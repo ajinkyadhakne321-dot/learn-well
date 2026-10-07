@@ -19,12 +19,15 @@ const session = require('express-session') as (options?: SessionOptions) => Requ
 const PgSessionStore = connectPgSimple(session)
 const allowedOrigins = new Set(env.clientOrigins)
 
-function isAllowedOrigin(origin?: string): boolean {
+function isAllowedOrigin(origin?: string, reqHost?: string): boolean {
   if (!origin) return true
   if (allowedOrigins.has(origin)) return true
   try {
     const url = new URL(origin)
     if (
+      (reqHost && (url.host === reqHost || url.hostname === reqHost)) ||
+      url.hostname.endsWith('.onrender.com') ||
+      url.hostname.endsWith('.vercel.app') ||
       url.hostname.endsWith('.trycloudflare.com') ||
       url.hostname.endsWith('.loca.lt') ||
       url.hostname.endsWith('.ngrok-free.app') ||
@@ -44,16 +47,26 @@ app.set('trust proxy', 1)
 app.use(helmet({
   contentSecurityPolicy: false,
 }))
-app.use(cors({
-  origin(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true)
-      return
-    }
-    callback(new HttpError(403, 'Origin is not allowed'))
-  },
-  credentials: true,
-}))
+
+const distPath = path.resolve(process.cwd(), 'dist')
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath))
+}
+
+app.use((request, response, next) => {
+  const host = request.get('x-forwarded-host') || request.get('host')
+  cors({
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin, host)) {
+        callback(null, true)
+        return
+      }
+      callback(new HttpError(403, 'Origin is not allowed'))
+    },
+    credentials: true,
+  })(request, response, next)
+})
+
 app.use(express.json({ limit: '10kb' }))
 app.use(session({
   name: 'learnwell.sid',
@@ -74,9 +87,7 @@ app.use('/api/auth', authRouter)
 app.use('/api/assistant', assistantRouter)
 app.use('/api', (_request, _response, next) => next(new HttpError(404, 'API route not found')))
 
-const distPath = path.resolve(process.cwd(), 'dist')
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath))
   app.use((_request, response) => {
     response.sendFile(path.join(distPath, 'index.html'))
   })

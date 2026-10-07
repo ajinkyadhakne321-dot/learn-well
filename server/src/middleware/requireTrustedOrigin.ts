@@ -19,6 +19,8 @@ export const requireTrustedOrigin: RequestHandler = (request, _response, next) =
       return
     }
     if (
+      originUrl.hostname.endsWith('.onrender.com') ||
+      originUrl.hostname.endsWith('.vercel.app') ||
       originUrl.hostname.endsWith('.trycloudflare.com') ||
       originUrl.hostname.endsWith('.loca.lt') ||
       originUrl.hostname.endsWith('.ngrok-free.app') ||
