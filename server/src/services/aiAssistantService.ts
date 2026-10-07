@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { env } from '../config/env.js'
 import { searchSyllabus, buildOfflineSyllabusAnswer } from './syllabusKnowledgeService.js'
 import { generateQuizForSubject, type GeneratedQuizQuestion } from './quizGeneratorService.js'
+import { answerUniversalQuestion } from './universalKnowledgeService.js'
 
 export type AssistantAction =
   | { type: 'NAVIGATE'; target: string; label: string }
@@ -23,6 +24,11 @@ export interface AssistantResponse {
   provider: 'gemini' | 'offline-agent'
 }
 
+export interface ChatHistoryItem {
+  role: 'user' | 'assistant' | 'model'
+  text: string
+}
+
 export interface AssistantContext {
   currentPath?: string
   pageTitle?: string
@@ -35,16 +41,26 @@ export interface AssistantContext {
     textSize?: string
     underlineLinks?: boolean
   }
+  history?: ChatHistoryItem[]
 }
 
-const SYSTEM_PROMPT = `You are "LearnWell Voice Assistant", an AI co-pilot designed specifically for students who are blind or visually impaired.
-Your primary job is to help the student navigate this learning platform, manage their studies, take notes, understand learning material orally, and generate interactive quizzes on demand.
+const SYSTEM_PROMPT = `You are "LearnWell Voice Assistant", an AI academic tutor and platform co-pilot designed for all students, including those who are blind or visually impaired.
 
-Rules for your voice output:
+Core Dual Capabilities:
+1. Universal Knowledge & General Q&A: You can answer ANY universal question about science, programming, history, math, literature, astronomy, geography, technology, everyday facts, or philosophy clearly, accurately, and conversationally. You have broad world knowledge; do not restrict yourself only to uploaded courses.
+2. Platform & Course Companion: You help the student navigate this learning platform, manage study notes, generate practice quizzes, read lessons orally, and search official syllabus materials.
+
+Conversational Memory & Note Taking:
+- You have access to recent conversation history. Use it to answer follow-up questions smoothly.
+- When the student asks to "save that to my notes", "make a note of that", "save this explanation", or similar, identify the relevant information from recent turns and return action:
+  {"type": "CREATE_NOTE", "title": "<concise title>", "content": "<key takeaway or full explanation>", "subject": "General Study"}
+
+Rules for Spoken Audio Output:
 1. Output concise, pleasant, natural spoken English. Blind students listen to audio output at high speeds.
-2. NEVER use markdown tables, asterisks, hash headers, or ASCII drawings because screen readers will stumble over them.
-3. Be direct, clear, and reassuring.
-4. When a student asks to go somewhere or perform an action, respond with JSON matching this structure:
+2. By default, keep answers between 2 and 4 spoken sentences. If the student explicitly asks for "more detail", "elaborate", or "in-depth explanation", provide a thorough explanation.
+3. NEVER use markdown tables, asterisks, hash headers, bullet points, or ASCII drawings because screen readers will stumble over them.
+4. When answering UNIVERSAL or general questions (e.g. "What is photosynthesis?", "Who was Alan Turing?", "Why is the sky blue?"), answer directly and warmly. DO NOT force a navigation action (NAVIGATE) to a course or syllabus PDF unless the student explicitly asks about their enrolled courses or syllabus documents.
+5. If the student explicitly asks about their syllabus or to go to a page or take a quiz, respond with JSON matching this structure:
 {
   "spokenText": "Clear verbal confirmation and helpful summary",
   "action": {
@@ -52,10 +68,11 @@ Rules for your voice output:
     ...action properties
   }
 }
+If no platform action is needed, omit the "action" field or set it to null.
 
 Quiz Generation Rules:
-- When the student asks to create a quiz or be quizzed on a subject (e.g., "Create a quiz on Software Engineering", "Quiz me on Python"), generate 3 to 4 multiple-choice questions grounded in their course notes and return action {"type": "LOAD_QUIZ", "subject": "...", "title": "...", "questions": [{"prompt": "...", "answers": ["..."], "correctAnswer": 0, "explanation": "..."}]}.
-- When a student asks if you can create quizzes, confirm enthusiastically and explain they can ask you anytime for quizzes on Software Engineering, Machine Learning, Statistics, Python, or Cloud Computing.
+- When the student asks to create a quiz or be quizzed on any topic (e.g., "Create a quiz on Software Engineering", "Quiz me on Python", "Quiz me on Astronomy"), generate 3 to 4 multiple-choice questions and return action {"type": "LOAD_QUIZ", "subject": "...", "title": "...", "questions": [{"prompt": "...", "answers": ["..."], "correctAnswer": 0, "explanation": "..."}]}.
+- When a student asks if you can create quizzes, confirm enthusiastically and explain they can ask you anytime for quizzes on any subject.
 
 Available routes for NAVIGATE action:
 - "/" (Dashboard)
@@ -87,7 +104,45 @@ export async function processAssistantMessage(
 ): Promise<AssistantResponse> {
   const query = userMessage.trim()
 
-  // 1. Direct Query: Can AI create quizzes?
+  // 1. Direct Intent: "Save that to my notes" / "Add this explanation to notes"
+  const isSaveLastToNotes =
+    /\b(save|add|put|write|record)\s+(that|this|it|last(\s+answer)?)\s+(to|in)\s+(my\s+)?notes?\b/i.test(query) ||
+    /\bmake\s+a\s+note\s+of\s+(that|this|it)\b/i.test(query)
+
+  if (isSaveLastToNotes) {
+    const lastAssistantMessage = context.history
+      ?.slice()
+      .reverse()
+      .find((h) => h.role === 'assistant' || h.role === 'model')
+
+    if (lastAssistantMessage && lastAssistantMessage.text) {
+      const lastUserMsg = context.history?.slice().reverse().find((h) => h.role === 'user')
+      let cleanTitle = 'Study Note'
+      if (lastUserMsg) {
+        cleanTitle = lastUserMsg.text
+          .replace(/^(who is|who was|what is|what are|tell me about|explain|describe)\s+/i, '')
+          .replace(/[?.!;,]+$/g, '')
+          .trim()
+      }
+      if (!cleanTitle || cleanTitle.length > 40) {
+        const topicMatch = lastAssistantMessage.text.match(/^([^.?!]+)/)
+        cleanTitle = (topicMatch ? topicMatch[1] : 'Study Note').slice(0, 32).trim()
+      }
+
+      return {
+        spokenText: `I have saved that explanation to your study notes under "${cleanTitle}".`,
+        action: {
+          type: 'CREATE_NOTE',
+          title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+          content: lastAssistantMessage.text,
+          subject: 'General Study',
+        },
+        provider: 'offline-agent',
+      }
+    }
+  }
+
+  // 2. Direct Query: Can AI create quizzes?
   const isCanQuizQuery =
     /\b(can|could|would)\s+(you|ai|the assistant|voice assistant)?\s*(create|make|generate)\s+(a\s+)?(quiz|quize|quizes|quzes|tests?)\b/i.test(query) ||
     (/\b(can|could)\s+ai\s+do\s+it\b/i.test(query) && /quiz/i.test(query)) ||
@@ -96,12 +151,12 @@ export async function processAssistantMessage(
 
   if (isCanQuizQuery) {
     return {
-      spokenText: `Yes, absolutely! I can generate custom interactive practice quizzes on any subject in your syllabus whenever you ask. You can say "Create a quiz on Software Engineering", "Quiz me on Machine Learning", "Create a quiz on Statistics", "Quiz me on Python loops", or "Quiz me on Cloud Computing". I will generate the questions and guide you through them. Would you like me to create a quiz for you now?`,
+      spokenText: `Yes, absolutely! I can generate custom interactive practice quizzes on any subject in your syllabus or general topics whenever you ask. You can say "Create a quiz on Software Engineering", "Quiz me on Machine Learning", "Create a quiz on Statistics", "Quiz me on Astronomy", or "Quiz me on Python loops". Would you like me to create a quiz for you now?`,
       provider: 'offline-agent',
     }
   }
 
-  // 2. Direct Quiz Generation Intent (creates interactive quiz on demand)
+  // 3. Direct Quiz Generation Intent (creates interactive quiz on demand)
   const isQuizGenRequest =
     /\b(create|make|generate|start|give me|load)\s+(a\s+)?(practice\s+)?(quiz|quize|quizes|quzes|tests?)\b/i.test(query) ||
     /\bquiz me\b/i.test(query) ||
@@ -110,7 +165,7 @@ export async function processAssistantMessage(
   if (isQuizGenRequest) {
     const generated = await generateQuizForSubject(query, query)
     return {
-      spokenText: `I have generated a ${generated.title} with ${generated.questions.length} questions based on your syllabus. Opening your quiz now. Question 1: ${generated.questions[0].prompt}`,
+      spokenText: `I have generated a ${generated.title} with ${generated.questions.length} questions. Opening your quiz now. Question 1: ${generated.questions[0].prompt}`,
       action: {
         type: 'LOAD_QUIZ',
         subject: generated.subject,
@@ -121,9 +176,11 @@ export async function processAssistantMessage(
     }
   }
 
-  const syllabusMatches = searchSyllabus(query, context.currentPath, 3)
+  // Only perform syllabus matching if the query mentions syllabus, course notes, unit, or learning materials
+  const isCourseSpecific = /\b(syllabus|course|unit|notes|chapter|pdf|lecture|textbook|curriculum)\b/i.test(query)
+  const syllabusMatches = isCourseSpecific ? searchSyllabus(query, context.currentPath, 3) : []
 
-  // 3. Try Gemini Generative AI if API key is configured
+  // 4. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
     try {
       const genAI = new GoogleGenerativeAI(env.geminiApiKey)
@@ -140,7 +197,14 @@ export async function processAssistantMessage(
       if (syllabusMatches.length > 0) {
         syllabusContextText = `\nOfficial Syllabus & Course Notes Excerpts:\n` + syllabusMatches.map((m) =>
           `[Document: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`
-        ).join('\n\n') + `\n\nIf the student is asking about syllabus concepts or course topics, answer accurately using these official notes. If relevant, set action to NAVIGATE to target "/materials/${syllabusMatches[0].materialId}" with label "${syllabusMatches[0].title}".`
+        ).join('\n\n') + `\n\nIf the student is specifically asking about syllabus concepts or course topics, answer accurately using these official notes. If relevant, set action to NAVIGATE to target "/materials/${syllabusMatches[0].materialId}" with label "${syllabusMatches[0].title}".`
+      }
+
+      let historyContext = ''
+      if (context.history && context.history.length > 0) {
+        historyContext = `\nRecent Conversation History:\n` + context.history.slice(-6).map((h) =>
+          `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.text}"`
+        ).join('\n') + '\n'
       }
 
       const prompt = `Current Context:
@@ -150,7 +214,7 @@ export async function processAssistantMessage(
 - Notes Count: ${context.notesCount ?? 0}
 - Pending Assignments: ${context.pendingAssignmentsCount ?? 3}
 ${syllabusContextText}
-
+${historyContext}
 Student voice input: "${query}"`
 
       const result = await model.generateContent(prompt)
@@ -175,15 +239,15 @@ Student voice input: "${query}"`
     }
   }
 
-  // 2. Intelligent Built-in Accessibility NLU Engine with Syllabus Knowledge Base
-  return processOfflineAccessibilityIntent(query, context, syllabusMatches)
+  // 5. Intelligent Built-in Accessibility NLU Engine with Universal & Syllabus Knowledge Bases
+  return await processOfflineAccessibilityIntent(query, context, syllabusMatches)
 }
 
-function processOfflineAccessibilityIntent(
+async function processOfflineAccessibilityIntent(
   query: string,
   context: AssistantContext,
   syllabusMatches: import('./syllabusKnowledgeService.js').SyllabusMatch[] = []
-): AssistantResponse {
+): Promise<AssistantResponse> {
   const lower = query.toLowerCase()
 
   // Navigation intents
@@ -396,9 +460,18 @@ function processOfflineAccessibilityIntent(
     }
   }
 
+  // 5. Universal & Encyclopedic Knowledge Q&A (Wikipedia REST API + Curated Encyclopedia)
+  const universal = await answerUniversalQuestion(query)
+  if (universal) {
+    return {
+      spokenText: universal.spokenText,
+      provider: 'offline-agent',
+    }
+  }
+
   // Default friendly conversational response
   return {
-    spokenText: `I heard: "${query}". You can ask me to navigate to Notes, Quiz, or Assignments, read your current lesson, or create a new note.`,
+    spokenText: `I heard: "${query}". You can ask me universal science and history questions, ask me to create a quiz, or ask to navigate to Notes, Quiz, or Assignments.`,
     provider: 'offline-agent',
   }
 }

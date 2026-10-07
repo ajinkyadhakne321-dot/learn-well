@@ -19,6 +19,10 @@ const chatRequestSchema = z.object({
       textSize: z.string().optional(),
       underlineLinks: z.boolean().optional(),
     }).optional(),
+    history: z.array(z.object({
+      role: z.enum(['user', 'assistant', 'model']),
+      text: z.string(),
+    })).optional(),
   }).optional(),
 })
 

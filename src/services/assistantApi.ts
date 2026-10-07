@@ -40,6 +40,10 @@ export interface AssistantRequestContext {
     textSize?: string
     underlineLinks?: boolean
   }
+  history?: Array<{
+    role: 'user' | 'assistant'
+    text: string
+  }>
 }
 
 export async function sendAssistantMessage(

@@ -105,6 +105,53 @@ export function createSpeechRecognizer(callbacks: {
 }
 
 /**
+ * Normalizes text for screen readers and speech synthesis:
+ * Converts Unicode math symbols, statistical variables, LaTeX, and OCR artifacts
+ * into clear, natural phonetic English.
+ */
+export function normalizeTextForSpeech(text: string): string {
+  if (!text) return ''
+
+  return text
+    // Remove markdown symbols
+    .replace(/[*#_`~>]/g, '')
+    // Statistical Quartiles and Variables from syllabus
+    .replace(/(?:𝑄1|Q1)/gu, 'Q 1, first quartile,')
+    .replace(/(?:𝑄3|Q3)/gu, 'Q 3, third quartile,')
+    .replace(/(?:𝑀𝑑|Md)/gu, 'median')
+    .replace(/(?:𝑋𝑙𝑎𝑟𝑔𝑒𝑠𝑡|Xlargest)/giu, 'largest X value')
+    .replace(/(?:𝑋𝑠𝑚𝑎𝑙𝑙𝑒𝑠𝑡|Xsmallest)/giu, 'smallest X value')
+    // Mathematical logic symbols
+    .replace(/∴/gu, ', therefore, ')
+    .replace(/∵/gu, ', because, ')
+    .replace(/∑/gu, 'sum of ')
+    .replace(/√/gu, 'square root of ')
+    .replace(/≠/gu, ' is not equal to ')
+    .replace(/≤/gu, ' is less than or equal to ')
+    .replace(/≥/gu, ' is greater than or equal to ')
+    .replace(/≈/gu, ' is approximately ')
+    .replace(/±/gu, ' plus or minus ')
+    .replace(/×/gu, ' times ')
+    .replace(/÷/gu, ' divided by ')
+    // Exponents
+    .replace(/(\w+)²/gu, '$1 squared')
+    .replace(/(\w+)³/gu, '$1 cubed')
+    // Greek symbols
+    .replace(/π/gu, 'pi')
+    .replace(/θ/gu, 'theta')
+    .replace(/σ/gu, 'sigma')
+    .replace(/μ/gu, 'mu')
+    // OCR artifacts like ( )𝑡ℎ or ( )th term
+    .replace(/\(\s*\)[𝑡th]?[ℎh]?\s*term/giu, 'th term')
+    .replace(/\(\s*\)[𝑡th]?[ℎh]?/giu, 'th term')
+    // Clean excessive spaces and newlines into smooth speech pauses
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/**
  * Speak text aloud using SpeechSynthesis
  */
 export function speakText(
@@ -125,7 +172,7 @@ export function speakText(
   // Cancel any currently speaking utterance (Barge-in capability)
   window.speechSynthesis.cancel()
 
-  const cleanText = text.replace(/[*#_`]/g, '').trim()
+  const cleanText = normalizeTextForSpeech(text)
   if (!cleanText) return
 
   const utterance = new SpeechSynthesisUtterance(cleanText)

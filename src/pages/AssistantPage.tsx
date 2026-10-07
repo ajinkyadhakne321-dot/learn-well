@@ -7,10 +7,10 @@ import {
   Sparkles,
   Send,
   FilePlus,
-  Calendar,
   Layers,
   ArrowRight,
   HelpCircle,
+  Headphones,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -21,6 +21,8 @@ import {
   playChimeListeningStart,
   playChimeProcessing,
   playChimeSuccess,
+  playChimeNoteSaved,
+  playChimeTurnPrompt,
 } from '../services/soundEffects'
 import {
   cancelSpeech,
@@ -53,6 +55,7 @@ export function AssistantPage() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1.25)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [handsFreeMode, setHandsFreeMode] = useState(false)
   const [statusInfo, setStatusInfo] = useState<{ available: boolean; geminiEnabled: boolean } | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
@@ -87,7 +90,11 @@ export function AssistantPage() {
 
   function handleExecuteAction(action: AssistantAction) {
     if (!action) return
-    playChimeSuccess()
+    if (action.type === 'CREATE_NOTE') {
+      playChimeNoteSaved()
+    } else {
+      playChimeSuccess()
+    }
 
     switch (action.type) {
       case 'NAVIGATE':
@@ -152,6 +159,14 @@ export function AssistantPage() {
     const trimmed = queryText.trim()
     if (!trimmed) return
 
+    if (/^(stop listening|disable auto listen|stop hands free|disable hands free|goodbye|bye)\b/i.test(trimmed)) {
+      setHandsFreeMode(false)
+      stopListening()
+      cancelSpeech()
+      announce('Hands-free auto-listening turned off.')
+      return
+    }
+
     cancelSpeech()
     setInputText('')
 
@@ -177,6 +192,10 @@ export function AssistantPage() {
           textSize: preferences.textSize,
           underlineLinks: preferences.underlineLinks,
         },
+        history: messages.slice(-8).map((m) => ({
+          role: m.sender,
+          text: m.text,
+        })),
       })
 
       const botMsg = {
@@ -197,14 +216,32 @@ export function AssistantPage() {
           onEnd: () => {
             setIsSpeaking(false)
             if (res.action) handleExecuteAction(res.action)
+            if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+              setTimeout(() => {
+                playChimeTurnPrompt()
+                startListening()
+              }, 400)
+            }
           },
           onError: () => {
             setIsSpeaking(false)
             if (res.action) handleExecuteAction(res.action)
+            if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+              setTimeout(() => {
+                playChimeTurnPrompt()
+                startListening()
+              }, 400)
+            }
           },
         })
-      } else if (res.action) {
-        handleExecuteAction(res.action)
+      } else {
+        if (res.action) handleExecuteAction(res.action)
+        if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+          setTimeout(() => {
+            playChimeTurnPrompt()
+            startListening()
+          }, 400)
+        }
       }
     } catch {
       playChimeError()
@@ -313,8 +350,28 @@ export function AssistantPage() {
           <span className={`status-dot ${statusInfo?.geminiEnabled ? 'active' : 'info'}`} aria-hidden="true" />
           <span>
             Intelligence Mode:{' '}
-            <strong>{statusInfo?.geminiEnabled ? 'Google Gemini 1.5 Flash' : 'Built-in Accessibility NLU'}</strong>
+            <strong>{statusInfo?.geminiEnabled ? 'Google Gemini 1.5 Flash' : 'Built-in Universal NLU'}</strong>
           </span>
+        </div>
+        <div className="status-item hands-free-wrapper">
+          <button
+            type="button"
+            className={`button button-secondary hands-free-btn ${handsFreeMode ? 'is-active' : ''}`}
+            onClick={() => {
+              const next = !handsFreeMode
+              setHandsFreeMode(next)
+              announce(
+                next
+                  ? 'Hands-free auto-listening enabled. The assistant will listen automatically after speaking.'
+                  : 'Hands-free mode turned off.'
+              )
+            }}
+            aria-pressed={handsFreeMode}
+            aria-label={handsFreeMode ? 'Hands-Free Auto-Listen active. Click to turn off.' : 'Turn on Hands-Free Auto-Listen'}
+          >
+            <Headphones size={15} aria-hidden="true" />
+            <span>Hands-Free: <strong>{handsFreeMode ? 'ON' : 'OFF'}</strong></span>
+          </button>
         </div>
         <div className="status-item speed-selector-wrapper">
           <label htmlFor="page-speech-rate">Reading Speed:</label>
@@ -391,6 +448,34 @@ export function AssistantPage() {
             <button
               type="button"
               className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Who was Alan Turing?')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> "Who was Alan Turing?"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('What is photosynthesis?')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> "What is photosynthesis?"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Explain quantum computing simply')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> "Quantum computing"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Save that to my notes')}
+            >
+              <FilePlus size={14} aria-hidden="true" /> "Save that to my notes"
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
               onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
             >
               <Sparkles size={14} aria-hidden="true" /> "Quiz me on Software Engineering"
@@ -398,37 +483,9 @@ export function AssistantPage() {
             <button
               type="button"
               className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Quiz me on Python loops')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Python loops"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Create a quiz on Statistics')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Statistics"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
               onClick={() => handleSendMessage('Take me to my notes')}
             >
               <Layers size={14} aria-hidden="true" /> "Go to my notes"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('What assignments are due this week?')}
-            >
-              <Calendar size={14} aria-hidden="true" /> "Upcoming deadlines"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Take a note: Review linear regression for upcoming quiz')}
-            >
-              <FilePlus size={14} aria-hidden="true" /> "Take a note about ML"
             </button>
             <button
               type="button"
@@ -471,11 +528,19 @@ export function AssistantPage() {
                 ref={inputRef}
                 type="text"
                 className="assistant-text-field"
-                placeholder={isListening ? 'Listening to your voice...' : 'Speak or type your request...'}
+                placeholder={isListening ? 'Listening to your voice...' : 'Speak or type any question...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 aria-label="Input field for voice assistant commands"
               />
+              {isListening && (
+                <div className="voice-wave-bars" aria-hidden="true">
+                  <span className="wave-bar bar-1" />
+                  <span className="wave-bar bar-2" />
+                  <span className="wave-bar bar-3" />
+                  <span className="wave-bar bar-4" />
+                </div>
+              )}
               {inputText.trim() && (
                 <button type="submit" className="assistant-send-btn" aria-label="Send query">
                   <Send size={18} aria-hidden="true" />

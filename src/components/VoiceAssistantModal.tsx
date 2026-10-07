@@ -10,10 +10,9 @@ import {
   HelpCircle,
   Compass,
   FilePlus,
-  BookOpen,
-  Calendar,
   Layers,
   ArrowRight,
+  Headphones,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
@@ -23,6 +22,8 @@ import {
   playChimeListeningStart,
   playChimeProcessing,
   playChimeSuccess,
+  playChimeNoteSaved,
+  playChimeTurnPrompt,
 } from '../services/soundEffects'
 import {
   cancelSpeech,
@@ -62,6 +63,7 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1.25)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [handsFreeMode, setHandsFreeMode] = useState(false)
   const [announcement, setAnnouncement] = useState('')
 
   const location = useLocation()
@@ -111,7 +113,11 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
   function handleExecuteAction(action: AssistantAction) {
     if (!action) return
 
-    playChimeSuccess()
+    if (action.type === 'CREATE_NOTE') {
+      playChimeNoteSaved()
+    } else {
+      playChimeSuccess()
+    }
 
     switch (action.type) {
       case 'NAVIGATE':
@@ -179,6 +185,14 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     const trimmed = queryText.trim()
     if (!trimmed) return
 
+    if (/^(stop listening|disable auto listen|stop hands free|disable hands free|goodbye|bye)\b/i.test(trimmed)) {
+      setHandsFreeMode(false)
+      stopListening()
+      cancelSpeech()
+      announce('Hands-free auto-listening turned off.')
+      return
+    }
+
     cancelSpeech()
     setInputText('')
 
@@ -208,6 +222,10 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
           textSize: preferences.textSize,
           underlineLinks: preferences.underlineLinks,
         },
+        history: messages.slice(-8).map((m) => ({
+          role: m.sender,
+          text: m.text,
+        })),
       })
 
       const botMsg: ChatMessage = {
@@ -228,14 +246,32 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
           onEnd: () => {
             setIsSpeaking(false)
             if (res.action) handleExecuteAction(res.action)
+            if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+              setTimeout(() => {
+                playChimeTurnPrompt()
+                startListening()
+              }, 400)
+            }
           },
           onError: () => {
             setIsSpeaking(false)
             if (res.action) handleExecuteAction(res.action)
+            if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+              setTimeout(() => {
+                playChimeTurnPrompt()
+                startListening()
+              }, 400)
+            }
           },
         })
-      } else if (res.action) {
-        handleExecuteAction(res.action)
+      } else {
+        if (res.action) handleExecuteAction(res.action)
+        if (handsFreeMode && res.action?.type !== 'NAVIGATE') {
+          setTimeout(() => {
+            playChimeTurnPrompt()
+            startListening()
+          }, 400)
+        }
       }
     } catch {
       playChimeError()
@@ -392,6 +428,22 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
               </select>
             </div>
 
+            {/* Hands-Free Auto-Listen Mode */}
+            <button
+              type="button"
+              className={`icon-button ${handsFreeMode ? 'is-active' : ''}`}
+              onClick={() => {
+                const next = !handsFreeMode
+                setHandsFreeMode(next)
+                announce(next ? 'Hands-free auto-listening enabled. The assistant will listen automatically after speaking.' : 'Hands-free mode disabled.')
+              }}
+              aria-pressed={handsFreeMode}
+              title={handsFreeMode ? 'Hands-Free Auto-Listen active' : 'Enable Hands-Free Auto-Listen'}
+              aria-label={handsFreeMode ? 'Hands-Free Auto-Listen active. Click to turn off.' : 'Turn on Hands-Free Auto-Listen'}
+            >
+              <Headphones size={20} aria-hidden="true" />
+            </button>
+
             {/* Mute speech output */}
             <button
               type="button"
@@ -483,16 +535,37 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
             <button
               type="button"
               className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
+              onClick={() => handleSendMessage('Who was Alan Turing?')}
             >
-              <Sparkles size={14} aria-hidden="true" /> Quiz me: SE
+              <Sparkles size={14} aria-hidden="true" /> Who was Alan Turing?
             </button>
             <button
               type="button"
               className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Quiz me on Python loops')}
+              onClick={() => handleSendMessage('What is photosynthesis?')}
             >
-              <Sparkles size={14} aria-hidden="true" /> Quiz me: Python
+              <Sparkles size={14} aria-hidden="true" /> Photosynthesis
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Explain quantum computing simply')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> Quantum computing
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Save that to my notes')}
+            >
+              <FilePlus size={14} aria-hidden="true" /> Save to notes
+            </button>
+            <button
+              type="button"
+              className="quick-prompt-chip"
+              onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
+            >
+              <Sparkles size={14} aria-hidden="true" /> Quiz me: SE
             </button>
             <button
               type="button"
@@ -504,30 +577,9 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
             <button
               type="button"
               className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Read this page summary aloud')}
-            >
-              <BookOpen size={14} aria-hidden="true" /> Read page
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
               onClick={() => handleSendMessage('Take me to my notes')}
             >
               <Layers size={14} aria-hidden="true" /> Go to Notes
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('What upcoming assignments do I have?')}
-            >
-              <Calendar size={14} aria-hidden="true" /> Deadlines
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Take a note: Remember to review loops')}
-            >
-              <FilePlus size={14} aria-hidden="true" /> Take note
             </button>
             <button
               type="button"
@@ -577,11 +629,19 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
                 ref={inputRef}
                 type="text"
                 className="assistant-text-field"
-                placeholder={isListening ? 'Listening to your voice...' : 'Speak or type a question...'}
+                placeholder={isListening ? 'Listening to your voice...' : 'Speak or type any question...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 aria-label="Ask the AI Assistant by typing or speaking"
               />
+              {isListening && (
+                <div className="voice-wave-bars" aria-hidden="true">
+                  <span className="wave-bar bar-1" />
+                  <span className="wave-bar bar-2" />
+                  <span className="wave-bar bar-3" />
+                  <span className="wave-bar bar-4" />
+                </div>
+              )}
               {inputText.trim() && (
                 <button
                   type="submit"

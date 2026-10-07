@@ -149,3 +149,60 @@ export function playChimeError() {
   osc.start(now)
   osc.stop(now + 0.2)
 }
+
+/**
+ * Play a delicate prompt chime when it's the student's turn to speak in hands-free mode
+ */
+export function playChimeTurnPrompt() {
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  const now = ctx.currentTime
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(659.25, now) // E5
+  osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.08) // G5
+
+  gain.gain.setValueAtTime(0.001, now)
+  gain.gain.linearRampToValueAtTime(0.09, now + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14)
+
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+
+  osc.start(now)
+  osc.stop(now + 0.15)
+}
+
+/**
+ * Play a bright chime when a study note is saved
+ */
+export function playChimeNoteSaved() {
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  const now = ctx.currentTime
+  const notes = [698.46, 1046.5] // F5, C6 (bright perfect fifth)
+
+  notes.forEach((freq, index) => {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const noteStart = now + index * 0.07
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(freq, noteStart)
+
+    gain.gain.setValueAtTime(0.001, noteStart)
+    gain.gain.linearRampToValueAtTime(0.12, noteStart + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.16)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start(noteStart)
+    osc.stop(noteStart + 0.18)
+  })
+}
+
