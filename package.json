@@ -10,6 +10,8 @@
     "server:build": "tsc -p server/tsconfig.json && node -e \"fs.copyFileSync('server/src/db/schema.sql', 'server/dist/db/schema.sql')\"",
     "server:start": "node server/dist/index.js",
     "db:migrate": "tsx server/src/db/migrate.ts",
+    "test": "tsx server/src/tests/assistant.test.ts",
+    "test:assistant": "tsx server/src/tests/assistant.test.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },

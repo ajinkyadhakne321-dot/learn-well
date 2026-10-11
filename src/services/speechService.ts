@@ -113,6 +113,25 @@ export function normalizeTextForSpeech(text: string): string {
   if (!text) return ''
 
   return text
+    // Programming code normalization for screen readers and speech synthesis
+    .replace(/```(?:c|cpp|python|java|javascript|typescript)?\s*([\s\S]*?)```/gi, (_match, code) => {
+      return ` Here is the code: ${code} `
+    })
+    .replace(/#include\s*<([^>]+)>/gi, 'include header $1')
+    .replace(/\bint\s+main\s*\(\s*\)/gi, 'integer main function')
+    .replace(/\bprintf\s*\(/gi, 'print f ')
+    .replace(/\bscanf\s*\(/gi, 'scan f ')
+    .replace(/%d/gi, 'percent d integer format')
+    .replace(/==/g, ' is equal to ')
+    .replace(/!=/g, ' is not equal to ')
+    .replace(/<=/g, ' is less than or equal to ')
+    .replace(/>=/g, ' is greater than or equal to ')
+    .replace(/&&/g, ' and ')
+    .replace(/\|\|/g, ' or ')
+    .replace(/\+\+/g, ' plus plus ')
+    .replace(/--/g, ' minus minus ')
+    .replace(/->/g, ' pointer arrow ')
+    .replace(/%(?!\d)/g, ' modulo ')
     // Remove markdown symbols
     .replace(/[*#_`~>]/g, '')
     // Statistical Quartiles and Variables from syllabus

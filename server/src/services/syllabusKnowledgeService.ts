@@ -81,7 +81,43 @@ const STOP_WORDS = new Set([
   'how', 'why', 'can', 'you', 'tell', 'me', 'explain', 'give', 'about', 'with', 'from',
   'this', 'that', 'these', 'those', 'are', 'was', 'were', 'it', 'its', 'be', 'been',
   'does', 'do', 'did', 'have', 'has', 'had', 'according', 'syllabus', 'pdf', 'notes',
+  'between', 'difference', 'differences', 'write', 'program', 'check', 'whether', 'using',
+  'code', 'works', 'work', 'step', 'steps', 'time', 'one', 'example', 'examples', 'real',
+  'life', 'know', 'answer', 'respond', 'response', 'should', 'simple', 'language', 'please',
+  'much', 'many', 'show', 'find', 'get', 'use', 'need', 'make', 'call', 'called', 'would',
+  'will', 'like', 'just', 'also', 'number', 'numbers', 'question', 'questions', 'help',
 ])
+
+// Subject-specific domain anchor terms required for topical relevance
+const SUBJECT_DOMAIN_TERMS: Record<string, string[]> = {
+  statistic: [
+    'statistic', 'statistics', 'mean', 'median', 'mode', 'dispersion', 'quartile', 'quartiles',
+    'variance', 'standard deviation', 'central tendency', 'frequency distribution', 'ungrouped',
+    'grouped data', 'cumulative frequency', 'skewness', 'kurtosis', 'probability',
+  ],
+  'software engineering': [
+    'software engineering', 'sdlc', 'waterfall', 'agile', 'scrum', 'requirements', 'srs',
+    'functional requirement', 'non-functional requirement', 'software maintenance', 'risk management',
+    'feasibility study', 'software testing', 'black box', 'white box',
+  ],
+  aiml: [
+    'machine learning', 'supervised learning', 'unsupervised learning', 'decision tree', 'random forest',
+    'support vector machine', 'svm', 'hyperplane', 'defect prediction', 'test case generation',
+    'natural language processing', 'nlp', 'deep learning', 'cloud computing', 'saas', 'paas', 'iaas',
+  ],
+  cloud: [
+    'cloud computing', 'saas', 'paas', 'iaas', 'service models', 'cloud deployment', 'nist',
+    'virtualization', 'public cloud', 'private cloud', 'hybrid cloud', 'multi-tenant',
+  ],
+  python: [
+    'python', 'for loop', 'while loop', 'iterable', 'enumerate', 'break statement',
+    'continue statement', 'pass statement', 'nested loop', 'zip function',
+  ],
+  datastructure: [
+    'data structures and algorithms', 'time complexity', 'space complexity', 'big o',
+    'asymptotic notation', 'asymptotic analysis', 'algorithmic efficiency',
+  ],
+}
 
 export function searchSyllabus(query: string, currentPath?: string, maxResults: number = 3): SyllabusMatch[] {
   const docs = loadSyllabusData()
@@ -90,7 +126,10 @@ export function searchSyllabus(query: string, currentPath?: string, maxResults: 
 
   if (rawTokens.length === 0) return []
 
-  // Extract multi-token phrases
+  const isExplicitSyllabusQuery =
+    /\b(syllabus|course notes?|unit\s+[1-4]|study material|lesson|chapter|uploaded document)\b/i.test(cleanQuery)
+
+  // Extract multi-token phrases of substantive tokens
   const phrases: string[] = []
   if (rawTokens.length >= 2) {
     for (let i = 0; i < rawTokens.length - 1; i++) {
@@ -110,42 +149,61 @@ export function searchSyllabus(query: string, currentPath?: string, maxResults: 
 
   for (const doc of docs) {
     const isDocActive = activeMaterialId === doc.materialId
-    const docSubjectMatch = cleanQuery.includes(doc.subject.toLowerCase())
-    const docTitleMatch = cleanQuery.includes(doc.title.toLowerCase())
+    const docSubjectKey = doc.subject.toLowerCase()
+    const docSubjectMatch = cleanQuery.includes(docSubjectKey)
+    const docTitleMatch =
+      cleanQuery.includes(doc.title.toLowerCase()) ||
+      doc.title.toLowerCase().split(/[\s:,-]+/).some((w) => w.length > 4 && !STOP_WORDS.has(w) && cleanQuery.includes(w))
+
+    // Determine domain terms for this document
+    const domainTerms = SUBJECT_DOMAIN_TERMS[docSubjectKey] || []
+    const hasDomainTermInQuery = domainTerms.some((dt) => cleanQuery.includes(dt))
+
+    // Unless the user explicitly queried syllabus/notes or is currently on this doc,
+    // require at least one domain-specific term or title match
+    if (!isExplicitSyllabusQuery && !isDocActive && !docSubjectMatch && !docTitleMatch && !hasDomainTermInQuery) {
+      continue
+    }
 
     for (const page of doc.pages) {
       const pageText = page.text
       const pageLower = pageText.toLowerCase()
       let score = 0
 
-      // Exact phrase match bonus
-      if (cleanQuery.length > 8 && pageLower.includes(cleanQuery)) {
+      // Exact phrase match bonus for multi-word queries
+      if (cleanQuery.length > 10 && pageLower.includes(cleanQuery)) {
         score += 60
       }
 
-      // Multi-word phrase matches
+      // Multi-word phrase matches of substantive tokens
       for (const phrase of phrases) {
         if (pageLower.includes(phrase)) {
           score += 35
         }
       }
 
-      // Check individual tokens
+      // Check individual substantive tokens
+      let matchedTokenCount = 0
       for (const token of rawTokens) {
         if (pageLower.includes(token)) {
           const regex = new RegExp(`\\b${token}\\b`, 'gi')
           const count = (pageLower.match(regex) || []).length
-          score += 5 + Math.min(count * 3, 15)
+          if (count > 0) {
+            matchedTokenCount++
+            score += 6 + Math.min(count * 3, 15)
+          }
         }
       }
 
       // Contextual boosts
-      if (isDocActive) score += 15
-      if (docSubjectMatch) score += 10
-      if (docTitleMatch) score += 10
+      if (isDocActive) score += 20
+      if (docSubjectMatch) score += 15
+      if (docTitleMatch) score += 15
+      if (hasDomainTermInQuery) score += 15
 
-      const minScore = rawTokens.length === 1 ? 7 : 10
-      if (score >= minScore) {
+      // Require meaningful score and matching tokens
+      const minRequiredScore = isExplicitSyllabusQuery || isDocActive ? 25 : 40
+      if (score >= minRequiredScore && matchedTokenCount >= 1) {
         // Find best snippet around first matched token
         let bestIndex = -1
         for (const token of rawTokens) {
@@ -231,11 +289,25 @@ export function buildOfflineSyllabusAnswer(query: string, matches: SyllabusMatch
   const topSentences = scoredSentences.filter((s) => s.score > 0).slice(0, 3)
   topSentences.sort((a, b) => a.index - b.index) // preserve natural reading order
 
-  const selectedText = topSentences.length > 0
-    ? topSentences.map((s) => s.sentence).join(' ')
-    : sentences.slice(0, 2).join(' ')
+  if (topSentences.length === 0 || top.score < 30) {
+    return null
+  }
 
-  const spoken = `According to ${top.title} on page ${top.page}: ${selectedText}`
+  let selectedText = topSentences.map((s) => s.sentence).join(' ')
+  
+  // Clean formula junk or broken OCR symbols
+  selectedText = selectedText
+    .replace(/[∴∵∑√≠≤≥≈±×÷]/g, '')
+    .replace(/\b\d+[a-z]\s*[+-]\s*\d+[a-z]\b/gi, '')
+    .replace(/[^\x20-\x7E]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  if (selectedText.length < 20) {
+    return null
+  }
+
+  const spoken = `According to your course material "${top.title}" on page ${top.page}: ${selectedText}`
 
   return {
     spokenText: spoken,
@@ -243,3 +315,4 @@ export function buildOfflineSyllabusAnswer(query: string, matches: SyllabusMatch
     title: top.title,
   }
 }
+

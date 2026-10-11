@@ -361,7 +361,36 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     announce('Audio playback stopped.')
   }
 
-  if (!isOpen) return null
+  function renderMessageContent(text: string) {
+    if (!text.includes('```')) {
+      return <p>{text}</p>
+    }
+    const parts = text.split(/(```[\s\S]*?```)/g)
+    return (
+      <>
+        {parts.map((part, index) => {
+          if (part.startsWith('```') && part.endsWith('```')) {
+            const lines = part.slice(3, -3).trim()
+            const firstLineBreak = lines.indexOf('\n')
+            let code = lines
+            if (firstLineBreak > 0) {
+              const firstLine = lines.slice(0, firstLineBreak).trim()
+              if (/^[a-zA-Z0-9_-]+$/.test(firstLine)) {
+                code = lines.slice(firstLineBreak + 1)
+              }
+            }
+            return (
+              <pre key={index} tabIndex={0} aria-label="Code snippet">
+                <code>{code}</code>
+              </pre>
+            )
+          }
+          if (!part.trim()) return null
+          return <p key={index}>{part.trim()}</p>
+        })}
+      </>
+    )
+  }
 
   return (
     <div
@@ -484,7 +513,8 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
               className={`assistant-chat-bubble ${msg.sender === 'user' ? 'bubble-user' : 'bubble-assistant'}`}
             >
               <div className="bubble-content">
-                <p>{msg.text}</p>
+                {renderMessageContent(msg.text)}
+
                 {msg.action && (
                   <div className="bubble-action-tag">
                     <ArrowRight size={14} aria-hidden="true" />

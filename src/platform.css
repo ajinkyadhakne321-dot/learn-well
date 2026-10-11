@@ -686,6 +686,23 @@ progress::-moz-progress-bar { background: #26705c; }
 
 .bubble-content p {
   margin: 0;
+  white-space: pre-wrap;
+}
+
+.bubble-content pre {
+  margin: 8px 0;
+  padding: 10px 14px;
+  background: #1e293b;
+  color: #f8fafc;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: calc(13px * var(--text-scale, 1));
+  line-height: 1.5;
+}
+
+.bubble-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .bubble-action-tag {

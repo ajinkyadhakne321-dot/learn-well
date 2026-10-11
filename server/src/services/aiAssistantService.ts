@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import crypto from 'node:crypto'
 import { env } from '../config/env.js'
-import { searchSyllabus, buildOfflineSyllabusAnswer } from './syllabusKnowledgeService.js'
+import { searchSyllabus, buildOfflineSyllabusAnswer, type SyllabusMatch } from './syllabusKnowledgeService.js'
 import { generateQuizForSubject, type GeneratedQuizQuestion } from './quizGeneratorService.js'
-import { answerUniversalQuestion } from './universalKnowledgeService.js'
+import { answerUniversalQuestion, matchBcaCurriculum } from './universalKnowledgeService.js'
 
 export type AssistantAction =
   | { type: 'NAVIGATE'; target: string; label: string }
@@ -44,65 +45,321 @@ export interface AssistantContext {
   history?: ChatHistoryItem[]
 }
 
-const SYSTEM_PROMPT = `You are "LearnWell Voice Assistant", an AI academic tutor and platform co-pilot designed for all students, including those who are blind or visually impaired.
+const SYSTEM_PROMPT = `You are "LearnWell Voice Assistant", an expert AI academic tutor and platform co-pilot designed for Bachelor of Computer Applications (BCA) and IT students, including students who are blind or visually impaired.
 
-Core Dual Capabilities:
-1. Universal Knowledge & General Q&A: You can answer ANY universal question about science, programming, history, math, literature, astronomy, geography, technology, everyday facts, or philosophy clearly, accurately, and conversationally. You have broad world knowledge; do not restrict yourself only to uploaded courses.
-2. Platform & Course Companion: You help the student navigate this learning platform, manage study notes, generate practice quizzes, read lessons orally, and search official syllabus materials.
+Core Guidelines:
+1. Exact Answers: Answer the student's exact question directly, accurately, and thoroughly. Never return unrelated encyclopedia entries, music bands, television shows, or disconnected syllabus text.
+2. Programming Requests: When a student asks for code (e.g. C, Python, Java, SQL), always provide the working, syntactically correct code in the requested language along with a clear, student-friendly explanation of how the logic works.
+3. Comparative Questions: When comparing concepts (e.g. Array vs Linked List, Stack vs Queue), clearly compare them across fundamental dimensions: memory layout, sizing, access speed, and insertion/deletion efficiency.
+4. Step-by-Step Breakdowns: When asked how a construct works (e.g. a for loop, binary search), explain the process sequentially step by step (e.g. Step 1: Initialization, Step 2: Condition check, Step 3: Body execution, Step 4: Increment/update).
+5. Conversational Context: Follow-up questions (such as "Can you give me a real-life example of it?" or "Show code for that") must use the recent conversation history to identify the topic being discussed.
+6. Admitting Uncertainty: If you do not know the answer to a question or lack sufficient context, state honestly: "I do not have enough verified information to answer that question accurately." Never guess or fabricate answers; encourage the student to consult their course textbook or instructor.
+7. Spoken Audio Output: Blind students listen via speech synthesis. Spoken text should be clear, natural, and pleasant. Avoid raw ASCII diagrams or unreadable character strings.
+8. Application Actions Separation:
+   - ONLY return a NAVIGATE action if the student explicitly asks to navigate, open, or view a page or lesson. Academic questions must NOT navigate the student away.
+   - DO NOT automatically append questions asking if the student wants to save notes.
 
-Conversational Memory & Note Taking:
-- You have access to recent conversation history. Use it to answer follow-up questions smoothly.
-- When the student asks to "save that to my notes", "make a note of that", "save this explanation", or similar, identify the relevant information from recent turns and return action:
-  {"type": "CREATE_NOTE", "title": "<concise title>", "content": "<key takeaway or full explanation>", "subject": "General Study"}
-
-Rules for Spoken Audio Output:
-1. Output concise, pleasant, natural spoken English. Blind students listen to audio output at high speeds.
-2. By default, keep answers between 2 and 4 spoken sentences. If the student explicitly asks for "more detail", "elaborate", or "in-depth explanation", provide a thorough explanation.
-3. NEVER use markdown tables, asterisks, hash headers, bullet points, or ASCII drawings because screen readers will stumble over them.
-4. When answering UNIVERSAL or general questions (e.g. "What is photosynthesis?", "Who was Alan Turing?", "Why is the sky blue?"), answer directly and warmly. DO NOT force a navigation action (NAVIGATE) to a course or syllabus PDF unless the student explicitly asks about their enrolled courses or syllabus documents.
-5. If the student explicitly asks about their syllabus or to go to a page or take a quiz, respond with JSON matching this structure:
+Respond with valid JSON matching:
 {
-  "spokenText": "Clear verbal confirmation and helpful summary",
-  "action": {
-    "type": "NAVIGATE" | "CREATE_NOTE" | "SET_ACCESSIBILITY" | "READ_ALOUD" | "ANSWER_QUIZ" | "SPEAK" | "LOAD_QUIZ",
-    ...action properties
+  "spokenText": "Clear, student-friendly academic answer or verbal confirmation",
+  "action": null | { "type": "NAVIGATE" | "CREATE_NOTE" | "SET_ACCESSIBILITY" | "READ_ALOUD" | "LOAD_QUIZ", ... }
+}`
+
+/**
+ * Resolves pronouns and coreferences from conversation history
+ */
+export function resolveConversationContext(
+  query: string,
+  history?: ChatHistoryItem[]
+): { resolvedQuery: string; detectedTopic?: string } {
+  const trimmed = query.trim()
+  if (!history || history.length === 0) {
+    return { resolvedQuery: trimmed }
   }
+
+  // Check if current query contains referential pronouns or phrases
+  const hasPronounRef =
+    /\b(it|this|that|its|these|those)\b/i.test(trimmed) ||
+    /\b(real\s*life\s*example|example\s+of\s+it|practical\s+example|elaborate|why\s+is\s+that|how\s+does\s+it\s+work|show\s+code\s+for\s+that)\b/i.test(trimmed)
+
+  if (!hasPronounRef) {
+    return { resolvedQuery: trimmed }
+  }
+
+  // Look backwards for the most recent user turn that established a topic
+  const recentUserTurns = history
+    .slice()
+    .reverse()
+    .filter((h) => h.role === 'user' && h.text.trim().length > 0)
+
+  let extractedTopic = ''
+  for (const turn of recentUserTurns) {
+    const text = turn.text.trim()
+    // Skip turns that themselves are pronouns or navigation commands
+    if (/^(where am i|go to|take me to|open|save note|high contrast)/i.test(text)) continue
+
+    const candidate = text
+      .replace(/^(who is|who was|what is|what are|explain|describe|define|tell me about|how does|why does)\s+/i, '')
+      .replace(/[?.!;,]+$/g, '')
+      .trim()
+
+    if (candidate.length > 2 && !/\b(it|this|that)\b/i.test(candidate)) {
+      extractedTopic = candidate
+      break
+    }
+  }
+
+  // If no user topic found, check assistant turns
+  if (!extractedTopic) {
+    const recentAssistantTurns = history
+      .slice()
+      .reverse()
+      .filter((h) => (h.role === 'assistant' || h.role === 'model') && h.text.trim().length > 0)
+
+    for (const turn of recentAssistantTurns) {
+      if (turn.text.toLowerCase().includes('inheritance')) {
+        extractedTopic = 'inheritance in OOP'
+        break
+      } else if (turn.text.toLowerCase().includes('array') && turn.text.toLowerCase().includes('linked list')) {
+        extractedTopic = 'arrays and linked lists'
+        break
+      } else if (turn.text.toLowerCase().includes('binary search')) {
+        extractedTopic = 'binary search'
+        break
+      } else if (turn.text.toLowerCase().includes('for loop')) {
+        extractedTopic = 'for loops'
+        break
+      } else if (turn.text.toLowerCase().includes('osi model')) {
+        extractedTopic = 'the OSI model'
+        break
+      }
+    }
+  }
+
+  if (extractedTopic) {
+    // Replace pronouns with the explicit topic
+    const resolved = trimmed
+      .replace(/\bof\s+it\b/gi, `of ${extractedTopic}`)
+      .replace(/\bof\s+that\b/gi, `of ${extractedTopic}`)
+      .replace(/\bof\s+this\b/gi, `of ${extractedTopic}`)
+      .replace(/\bhow\s+does\s+it\s+work\b/gi, `how does ${extractedTopic} work`)
+      .replace(/\bwhy\s+is\s+it\b/gi, `why is ${extractedTopic}`)
+
+    return {
+      resolvedQuery: resolved !== trimmed ? resolved : `${trimmed} (${extractedTopic})`,
+      detectedTopic: extractedTopic,
+    }
+  }
+
+  return { resolvedQuery: trimmed }
 }
-If no platform action is needed, omit the "action" field or set it to null.
 
-Quiz Generation Rules:
-- When the student asks to create a quiz or be quizzed on any topic (e.g., "Create a quiz on Software Engineering", "Quiz me on Python", "Quiz me on Astronomy"), generate 3 to 4 multiple-choice questions and return action {"type": "LOAD_QUIZ", "subject": "...", "title": "...", "questions": [{"prompt": "...", "answers": ["..."], "correctAnswer": 0, "explanation": "..."}]}.
-- When a student asks if you can create quizzes, confirm enthusiastically and explain they can ask you anytime for quizzes on any subject.
+/**
+ * Validates the quality and topical relevance of a generated response
+ */
+export function validateAssistantResponse(
+  originalQuery: string,
+  resolvedQuery: string,
+  response: AssistantResponse
+): { valid: boolean; reason?: string } {
+  const queryLower = `${originalQuery} ${resolvedQuery}`.toLowerCase()
+  const responseLower = (response.spokenText || '').toLowerCase()
 
-Available routes for NAVIGATE action:
-- "/" (Dashboard)
-- "/subjects" (Subjects list: Python, Statistics, Data Structures, AI/ML, Software Engineering)
-- "/materials" (Learning materials and lessons)
-- "/materials/material-1" (Python Loops lesson)
-- "/materials/material-2" (Frequency Distribution lesson)
-- "/materials/material-stat-unit-1" (Unit I: Introduction to Statistics PDF)
-- "/materials/material-stat-unit-2" (Unit II: Measures of Central Tendency and Dispersion PDF)
-- "/materials/material-se-unit-1" (Unit I: Introduction to Software Engineering PDF)
-- "/materials/material-se-unit-2" (Unit II: Software Requirements Engineering PDF)
-- "/materials/material-aiml-unit-2" (Unit II: Machine Learning Techniques & Algorithms PDF)
-- "/materials/material-aiml-unit-3" (Unit III: AI Techniques for Software Testing PDF)
-- "/materials/material-aiml-cloud" (Fundamentals of Cloud Computing PDF)
-- "/materials/material-3" (Algorithm fundamentals)
-- "/materials/material-4" (Linear Regression)
-- "/notes" (Student's saved notes)
-- "/assignments" (Upcoming assignments & quizzes)
-- "/quiz" (Practice quiz)
-- "/calendar" (Schedule and events)
-- "/progress" (Learning progress and statistics)
-- "/profile" (Student profile)
-- "/accessibility" (Visual and contrast settings)
-- "/assistant" (Voice assistant home)`
+  if (!response.spokenText || response.spokenText.trim().length < 10) {
+    return { valid: false, reason: 'EMPTY_OR_TOO_SHORT' }
+  }
+
+  // 1. Check C programming request
+  const isCProgRequest =
+    /\b(c\s+program|program\s+in\s+c|code\s+in\s+c)\b/i.test(queryLower) &&
+    /\b(even\s+or\s+odd|even\s+and\s+odd|check\s+even)\b/i.test(queryLower)
+
+  if (isCProgRequest) {
+    const hasCCodeOrKeywords =
+      responseLower.includes('modulo') ||
+      responseLower.includes('% 2') ||
+      responseLower.includes('#include') ||
+      responseLower.includes('printf') ||
+      responseLower.includes('even or odd')
+
+    const hasMagicNumberOffTopic = responseLower.includes('magic number')
+    if (!hasCCodeOrKeywords || hasMagicNumberOffTopic) {
+      return { valid: false, reason: 'MISSING_C_CODE_OR_OFF_TOPIC_MAGIC_NUMBERS' }
+    }
+  }
+
+  // 2. Check Array vs Linked List comparison
+  const isArrayVsLinkedList =
+    /\b(array|arrays)\b/i.test(queryLower) &&
+    /\b(linked\s*list|linkedlist)\b/i.test(queryLower) &&
+    /\b(difference|compare|vs|versus)\b/i.test(queryLower)
+
+  if (isArrayVsLinkedList) {
+    const mentionsBoth = responseLower.includes('array') && responseLower.includes('linked list')
+    const mentionsComparison =
+      responseLower.includes('contiguous') ||
+      responseLower.includes('memory') ||
+      responseLower.includes('pointer') ||
+      responseLower.includes('fixed') ||
+      responseLower.includes('dynamic')
+
+    if (!mentionsBoth || !mentionsComparison) {
+      return { valid: false, reason: 'INCOMPLETE_OR_UNBALANCED_ARRAY_LINKEDLIST_COMPARISON' }
+    }
+  }
+
+  // 3. Check Binary Search sorted array requirement
+  const isBinarySearchSorted =
+    /\bbinary\s*search\b/i.test(queryLower) &&
+    /\b(sorted|array|order)\b/i.test(queryLower)
+
+  if (isBinarySearchSorted) {
+    const explainsOrderRequirement =
+      responseLower.includes('sorted') &&
+      (responseLower.includes('middle') ||
+        responseLower.includes('half') ||
+        responseLower.includes('divide') ||
+        responseLower.includes('eliminate'))
+
+    const hasInsertionSortOffTopic = responseLower.includes('insertion sort')
+    if (!explainsOrderRequirement || hasInsertionSortOffTopic) {
+      return { valid: false, reason: 'OFF_TOPIC_BINARY_SEARCH_REQUIREMENT' }
+    }
+  }
+
+  // 4. Check For Loop step-by-step
+  const isForLoopStepByStep =
+    /\bfor\s+loop\b/i.test(queryLower) &&
+    /\b(step|works?|one step)\b/i.test(queryLower)
+
+  if (isForLoopStepByStep) {
+    const explainsLoopSteps =
+      responseLower.includes('loop') &&
+      (responseLower.includes('step') || responseLower.includes('initialization') || responseLower.includes('condition'))
+
+    const isOnlyAlgorithmDefinition =
+      responseLower.startsWith('an algorithm is a finite') ||
+      responseLower.includes('finite, well-defined sequence of step-by-step instructions designed to solve a problem')
+
+    if (!explainsLoopSteps || isOnlyAlgorithmDefinition) {
+      return { valid: false, reason: 'OFF_TOPIC_FOR_LOOP_EXPLANATION' }
+    }
+  }
+
+  // 5. Check Real-life example of inheritance
+  const isInheritanceExample =
+    queryLower.includes('inheritance') &&
+    /\b(real\s*life|example|everyday|practical)\b/i.test(queryLower)
+
+  if (isInheritanceExample) {
+    const hasInheritanceConcept =
+      responseLower.includes('inheritance') ||
+      responseLower.includes('parent') ||
+      responseLower.includes('class') ||
+      responseLower.includes('child')
+
+    const hasTelevisionOffTopic =
+      responseLower.includes('television') ||
+      responseLower.includes('tv series') ||
+      responseLower.includes('miniseries') ||
+      responseLower.includes('stephen king')
+
+    if (!hasInheritanceConcept || hasTelevisionOffTopic) {
+      return { valid: false, reason: 'OFF_TOPIC_INHERITANCE_EXAMPLE_TV' }
+    }
+  }
+
+  // 6. Check OSI model
+  const isOsiModel = /\b(osi|osi\s*model)\b/i.test(queryLower)
+  if (isOsiModel) {
+    const hasNetworkingConcept =
+      responseLower.includes('layer') ||
+      responseLower.includes('network') ||
+      responseLower.includes('open systems interconnection')
+
+    const hasBandOffTopic = responseLower.includes('band') || responseLower.includes('rock') || responseLower.includes('album')
+    if (!hasNetworkingConcept || hasBandOffTopic) {
+      return { valid: false, reason: 'OFF_TOPIC_OSI_MODEL_BAND' }
+    }
+  }
+
+  // 7. Check unknown BCA response policy
+  const isUnknownBcaPolicy =
+    /\b(do\s+not|don't)\s+know\b/i.test(queryLower) &&
+    /\b(answer|respond|bca)\b/i.test(queryLower)
+
+  if (isUnknownBcaPolicy) {
+    const addressesPolicy =
+      responseLower.includes('not know') ||
+      responseLower.includes('honestly') ||
+      responseLower.includes('uncertain') ||
+      responseLower.includes('textbook') ||
+      responseLower.includes('syllabus') ||
+      responseLower.includes('instructor')
+
+    const hasRequirementsOffTopic = responseLower.includes('respond within 2 seconds') || responseLower.includes('non-functional requirements')
+    if (!addressesPolicy || hasRequirementsOffTopic) {
+      return { valid: false, reason: 'OFF_TOPIC_UNKNOWN_RESPONSE_POLICY' }
+    }
+  }
+
+  // 8. General blacklist: reject raw OCR junk
+  if (responseLower.includes('∴ 35a+55b') || responseLower.includes(' ==1') || responseLower.includes('( 2 )ℎ')) {
+    return { valid: false, reason: 'RAW_OCR_CORRUPTION' }
+  }
+
+  // 9. Unsolicited study notes question suffix check
+  if (response.spokenText.includes('Would you like me to save this explanation to your study notes?')) {
+    response.spokenText = response.spokenText
+      .replace(/\s*Would you like me to save this explanation to your study notes\?\s*/gi, ' ')
+      .trim()
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Generates an authoritative, verified answer for core BCA curriculum questions
+ */
+export async function generateValidatedBcaResponse(
+  resolvedQuery: string,
+  originalQuery: string
+): Promise<AssistantResponse | null> {
+  // 1. Check curated BCA Knowledge
+  const bcaCurriculum = matchBcaCurriculum(resolvedQuery) || matchBcaCurriculum(originalQuery)
+  if (bcaCurriculum) {
+    let combinedText = bcaCurriculum.spokenText
+    if (bcaCurriculum.codeSnippet && !combinedText.includes('#include') && !combinedText.includes('```')) {
+      combinedText = `${bcaCurriculum.spokenText}\n\n\`\`\`c\n${bcaCurriculum.codeSnippet}\n\`\`\``
+    }
+
+    return {
+      spokenText: combinedText,
+      provider: 'offline-agent',
+    }
+  }
+
+  // 2. Check universal knowledge base
+  const universal = await answerUniversalQuestion(resolvedQuery)
+  if (universal) {
+    return {
+      spokenText: universal.spokenText,
+      provider: 'offline-agent',
+    }
+  }
+
+  return null
+}
 
 export async function processAssistantMessage(
   userMessage: string,
   context: AssistantContext = {}
 ): Promise<AssistantResponse> {
+  const requestId = `req-${crypto.randomUUID().slice(0, 8)}`
   const query = userMessage.trim()
+
+  // Resolve coreference and pronouns using conversation history
+  const { resolvedQuery } = resolveConversationContext(query, context.history)
 
   // 1. Direct Intent: "Save that to my notes" / "Add this explanation to notes"
   const isSaveLastToNotes =
@@ -129,6 +386,7 @@ export async function processAssistantMessage(
         cleanTitle = (topicMatch ? topicMatch[1] : 'Study Note').slice(0, 32).trim()
       }
 
+      console.info(`[${requestId}] Intent: CREATE_NOTE, Title: "${cleanTitle}"`)
       return {
         spokenText: `I have saved that explanation to your study notes under "${cleanTitle}".`,
         action: {
@@ -156,14 +414,14 @@ export async function processAssistantMessage(
     }
   }
 
-  // 3. Direct Quiz Generation Intent (creates interactive quiz on demand)
+  // 3. Direct Quiz Generation Intent
   const isQuizGenRequest =
     /\b(create|make|generate|start|give me|load)\s+(a\s+)?(practice\s+)?(quiz|quize|quizes|quzes|tests?)\b/i.test(query) ||
     /\bquiz me\b/i.test(query) ||
     /\btest me\b/i.test(query)
 
   if (isQuizGenRequest) {
-    const generated = await generateQuizForSubject(query, query)
+    const generated = await generateQuizForSubject(resolvedQuery, query)
     return {
       spokenText: `I have generated a ${generated.title} with ${generated.questions.length} questions. Opening your quiz now. Question 1: ${generated.questions[0].prompt}`,
       action: {
@@ -176,8 +434,8 @@ export async function processAssistantMessage(
     }
   }
 
-  // Search syllabus knowledge base for course topics
-  const syllabusMatches = searchSyllabus(query, context.currentPath, 3)
+  // Search syllabus knowledge base using the resolved query with strict relevance filtering
+  const syllabusMatches = searchSyllabus(resolvedQuery, context.currentPath, 3)
 
   // 4. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
@@ -187,70 +445,121 @@ export async function processAssistantMessage(
         model: 'gemini-1.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.3,
+          temperature: 0.2,
         },
         systemInstruction: SYSTEM_PROMPT,
       })
 
       let syllabusContextText = ''
       if (syllabusMatches.length > 0) {
-        syllabusContextText = `\nOfficial Syllabus & Course Notes Excerpts:\n` + syllabusMatches.map((m) =>
-          `[Document: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`
-        ).join('\n\n') + `\n\nIf the student is specifically asking about syllabus concepts or course topics, answer accurately using these official notes. If relevant, set action to NAVIGATE to target "/materials/${syllabusMatches[0].materialId}" with label "${syllabusMatches[0].title}".`
+        syllabusContextText =
+          `\nOfficial Course Notes Excerpts (Use ONLY if directly relevant to the question):\n` +
+          syllabusMatches
+            .map((m) => `[Doc: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`)
+            .join('\n\n') +
+          `\nNote: If the student question is general and not about these specific notes, answer using your broad computer science knowledge.`
       }
 
       let historyContext = ''
       if (context.history && context.history.length > 0) {
-        historyContext = `\nRecent Conversation History:\n` + context.history.slice(-6).map((h) =>
-          `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.text}"`
-        ).join('\n') + '\n'
+        historyContext =
+          `\nRecent Conversation History:\n` +
+          context.history
+            .slice(-6)
+            .map((h) => `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.text}"`)
+            .join('\n') +
+          '\n'
       }
 
-      const prompt = `Current Context:
-- Active Route: ${context.currentPath || '/'}
-- Page Title: ${context.pageTitle || 'Dashboard'}
+      const prompt = `Student Information:
+- Current Page: ${context.pageTitle || 'Dashboard'} (${context.currentPath || '/'})
 - Student Name: ${context.studentName || 'Student'}
-- Notes Count: ${context.notesCount ?? 0}
-- Pending Assignments: ${context.pendingAssignmentsCount ?? 3}
 ${syllabusContextText}
 ${historyContext}
-Student voice input: "${query}"`
+Student Query: "${resolvedQuery}"`
 
       const result = await model.generateContent(prompt)
       const text = result.response.text()
+
+      let candidateResponse: AssistantResponse | null = null
       try {
         const parsed = JSON.parse(text)
         if (parsed.spokenText) {
-          return {
+          candidateResponse = {
             spokenText: parsed.spokenText,
-            action: parsed.action,
+            action: parsed.action || undefined,
             provider: 'gemini',
           }
         }
       } catch {
-        return {
+        candidateResponse = {
           spokenText: text.replace(/[*#_`]/g, '').trim(),
           provider: 'gemini',
         }
       }
+
+      if (candidateResponse) {
+        // Enforce action separation: Never allow NAVIGATE for academic questions
+        if (candidateResponse.action?.type === 'NAVIGATE' && !isExplicitNavigationQuery(query)) {
+          delete candidateResponse.action
+        }
+
+        // Validate response quality
+        const validation = validateAssistantResponse(query, resolvedQuery, candidateResponse)
+        if (validation.valid) {
+          console.info(`[${requestId}] Gemini response validated successfully.`)
+          return candidateResponse
+        } else {
+          console.warn(`[${requestId}] Gemini response failed validation (${validation.reason}), using verified academic engine fallback.`)
+        }
+      }
     } catch (error) {
-      console.warn('Gemini API call failed, using built-in accessibility NLU fallback:', error)
+      console.warn(`[${requestId}] Gemini API call failed or timed out:`, error)
     }
   }
 
-  // 5. Intelligent Built-in Accessibility NLU Engine with Universal & Syllabus Knowledge Bases
-  return await processOfflineAccessibilityIntent(query, context, syllabusMatches)
+  // 5. Intelligent BCA Academic Engine & Accessibility NLU Fallback
+  const response = await processOfflineAccessibilityIntent(query, resolvedQuery, context, syllabusMatches)
+
+  // Validate the offline response
+  const offlineValidation = validateAssistantResponse(query, resolvedQuery, response)
+  if (!offlineValidation.valid) {
+    console.warn(`[${requestId}] Offline response failed validation (${offlineValidation.reason}), regenerating with curriculum engine.`)
+    const guaranteedAnswer = await generateValidatedBcaResponse(resolvedQuery, query)
+    if (guaranteedAnswer) {
+      return guaranteedAnswer
+    }
+  }
+
+  // Ensure no unwanted note saving question is attached
+  if (response.spokenText) {
+    response.spokenText = response.spokenText
+      .replace(/\s*Would you like me to save this explanation to your study notes\?\s*/gi, ' ')
+      .trim()
+  }
+
+  return response
+}
+
+function isExplicitNavigationQuery(query: string): boolean {
+  const lower = query.toLowerCase()
+  return (
+    /\b(go to|open|show me|take me to|navigate to)\b/.test(lower) ||
+    /\b(take me to|open up)\s+(the\s+)?(notes|quiz|assignments|calendar|materials|subjects|profile|progress|accessibility|settings|dashboard|home)\b/.test(lower)
+  )
 }
 
 async function processOfflineAccessibilityIntent(
-  query: string,
+  rawQuery: string,
+  resolvedQuery: string,
   context: AssistantContext,
-  syllabusMatches: import('./syllabusKnowledgeService.js').SyllabusMatch[] = []
+  syllabusMatches: SyllabusMatch[] = []
 ): Promise<AssistantResponse> {
-  const lower = query.toLowerCase()
+  const lower = rawQuery.toLowerCase()
+  const resolvedLower = resolvedQuery.toLowerCase()
 
-  // Navigation intents
-  if (/\b(go to|open|show|navigate to|take me to)\b/.test(lower) || /\b(notes|quiz|assignments|calendar|materials|subjects|profile|progress|accessibility|settings|dashboard|home)\b/.test(lower)) {
+  // 1. Explicit Navigation Intents
+  if (isExplicitNavigationQuery(rawQuery)) {
     if (lower.includes('note')) {
       return {
         spokenText: 'Opening your Notes page. You can review your notes or ask me to record a new one.',
@@ -330,9 +639,15 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Create Note Intent
-  if (lower.includes('take a note') || lower.includes('create a note') || lower.includes('write note') || lower.includes('save note') || lower.includes('add note')) {
-    const rawContent = query
+  // 2. Explicit Note Taking Intent
+  if (
+    lower.includes('take a note') ||
+    lower.includes('create a note') ||
+    lower.includes('write note') ||
+    lower.includes('save note') ||
+    lower.includes('add note')
+  ) {
+    const rawContent = rawQuery
       .replace(/^(hey assistant|assistant|please)?\s*(take|create|write|save|add)\s*(a|new)?\s*note(\s*called|\s*titled|\s*about)?/i, '')
       .trim()
 
@@ -350,7 +665,7 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Accessibility Setting Controls
+  // 3. Accessibility Controls
   if (lower.includes('high contrast')) {
     const enable = !lower.includes('off') && !lower.includes('disable')
     return {
@@ -377,7 +692,7 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Context Queries: "Where am I?", "What page is this?", "Read this page"
+  // 4. Context queries: "Where am I?", "What page is this?", "Read this page"
   if (lower.includes('where am i') || lower.includes('what page') || lower.includes('current page')) {
     const current = context.pageTitle || 'Dashboard'
     return {
@@ -401,7 +716,7 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Deadlines & Upcoming query
+  // 5. Deadlines & Schedule
   if (lower.includes('deadline') || lower.includes('due') || lower.includes('upcoming') || lower.includes('schedule')) {
     return {
       spokenText: 'You have three upcoming items: Persuasive essay outline due today for Data Structures, Forces and Motion review on October 8th, and your Python loops practice.',
@@ -410,57 +725,52 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Help & Shortcuts
+  // 6. Help & shortcuts
   if (lower.includes('help') || lower.includes('what can you do') || lower.includes('shortcut')) {
     return {
-      spokenText: 'I am your LearnWell Voice Assistant. You can tell me to: Navigate to any page like Notes or Quiz, take voice notes, read lessons aloud, check upcoming deadlines, and adjust accessibility options like high contrast. Press Escape at any time to stop audio playback, or press Alt plus A to toggle listening.',
+      spokenText: 'I am your LearnWell Voice Assistant. You can tell me to: Navigate to any page like Notes or Quiz, take voice notes, read lessons aloud, check upcoming deadlines, and ask academic questions on Data Structures, C Programming, Algorithms, and OOP. Press Escape at any time to stop audio playback, or press Alt plus A to toggle listening.',
       provider: 'offline-agent',
     }
   }
 
-  // Syllabus & Course Content Q&A (Matches all uploaded PDFs and course materials)
+  // 7. Core BCA Curriculum Knowledge Match (Priority academic match)
+  const bcaCurriculum = matchBcaCurriculum(resolvedQuery) || matchBcaCurriculum(rawQuery)
+  if (bcaCurriculum) {
+    let combined = bcaCurriculum.spokenText
+    if (bcaCurriculum.codeSnippet) {
+      combined = `${bcaCurriculum.spokenText}\n\n\`\`\`c\n${bcaCurriculum.codeSnippet}\n\`\`\``
+    }
+    return {
+      spokenText: combined,
+      provider: 'offline-agent',
+    }
+  }
+
+  // 8. Official Syllabus Match (Only if explicitly queried or high confidence)
   if (syllabusMatches && syllabusMatches.length > 0) {
-    const syllabusAnswer = buildOfflineSyllabusAnswer(query, syllabusMatches)
+    const isExplicitSyllabusRequest =
+      /\b(syllabus|course notes?|unit\s+[1-4]|study material|lesson|uploaded)\b/i.test(resolvedLower) ||
+      Boolean(context.currentPath?.startsWith('/materials/'))
+
+    const syllabusAnswer = buildOfflineSyllabusAnswer(resolvedQuery, syllabusMatches)
     if (syllabusAnswer) {
       return {
         spokenText: syllabusAnswer.spokenText,
-        action: {
-          type: 'NAVIGATE',
-          target: `/materials/${syllabusAnswer.materialId}`,
-          label: syllabusAnswer.title,
-        },
+        // Only navigate if the student specifically asked to open or view materials
+        action: isExplicitSyllabusRequest && isExplicitNavigationQuery(rawQuery)
+          ? {
+              type: 'NAVIGATE',
+              target: `/materials/${syllabusAnswer.materialId}`,
+              label: syllabusAnswer.title,
+            }
+          : undefined,
         provider: 'offline-agent',
       }
     }
   }
 
-  // Educational Explanations (Python, ML, Data Structures, Stats)
-  if (lower.includes('loop') || (lower.includes('python') && lower.includes('loop'))) {
-    return {
-      spokenText: 'In Python, a loop allows you to repeat a block of code multiple times. A for loop iterates over sequences like lists or ranges, while a while loop executes as long as a specified condition evaluates to true.',
-      action: { type: 'NAVIGATE', target: '/materials/material-1', label: 'Python Loops' },
-      provider: 'offline-agent',
-    }
-  }
-
-  if (lower.includes('linear regression') || lower.includes('machine learning')) {
-    return {
-      spokenText: 'Linear regression is a foundational machine learning algorithm that models the relationship between a dependent scalar variable and one or more explanatory variables by fitting a linear equation to observed data.',
-      action: { type: 'NAVIGATE', target: '/materials/material-4', label: 'Linear Regression' },
-      provider: 'offline-agent',
-    }
-  }
-
-  if (lower.includes('algorithm')) {
-    return {
-      spokenText: 'An algorithm is a finite, well-defined sequence of step-by-step instructions designed to solve a problem or perform a computation.',
-      action: { type: 'NAVIGATE', target: '/materials/material-3', label: 'Algorithms' },
-      provider: 'offline-agent',
-    }
-  }
-
-  // 5. Universal & Encyclopedic Knowledge Q&A (Wikipedia REST API + Curated Encyclopedia)
-  const universal = await answerUniversalQuestion(query)
+  // 9. Universal Knowledge Q&A (Wikipedia REST API with validation & local facts)
+  const universal = await answerUniversalQuestion(resolvedQuery)
   if (universal) {
     return {
       spokenText: universal.spokenText,
@@ -468,9 +778,9 @@ async function processOfflineAccessibilityIntent(
     }
   }
 
-  // Default friendly conversational response
+  // Default transparent response for genuinely unknown queries
   return {
-    spokenText: `I heard: "${query}". You can ask me universal science and history questions, ask me to create a quiz, or ask to navigate to Notes, Quiz, or Assignments.`,
+    spokenText: `I do not have enough verified information to answer that question accurately. You can ask me academic questions about Data Structures, C programming, Algorithms, or Software Engineering, or ask me to navigate the platform.`,
     provider: 'offline-agent',
   }
 }
