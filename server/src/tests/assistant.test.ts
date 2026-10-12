@@ -283,6 +283,33 @@ async function main() {
     assert(normalized.includes('is equal to') || normalized.includes('equals'), '== must be spoken as is equal to')
   })
 
+  // --- 13. Voice Assistant Close Intents ---
+  await runTest('13. Close intents correctly trigger CLOSE action for tab/modal queries', async () => {
+    const closeQueries = [
+      'close the ai voice assistant tab',
+      'close the voice assistant tab',
+      'close ai voice assistant',
+      'close assistant',
+      'close tab',
+      'close the tab',
+      'exit',
+      'dismiss',
+    ]
+
+    for (const q of closeQueries) {
+      const res = await processAssistantMessage(q)
+      assert.strictEqual(
+        res.action?.type,
+        'CLOSE',
+        `Query "${q}" must trigger CLOSE action, got: ${JSON.stringify(res.action)}`
+      )
+      assert(
+        res.spokenText.toLowerCase().includes('closing'),
+        `Query "${q}" must confirm closing, got: "${res.spokenText}"`
+      )
+    }
+  })
+
   console.log('\n======================================================')
   const total = results.length
   const passed = results.filter((r) => r.passed).length

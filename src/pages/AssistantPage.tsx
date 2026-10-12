@@ -9,10 +9,12 @@ import {
   FilePlus,
   Layers,
   ArrowRight,
+  ArrowLeft,
+  X,
   HelpCircle,
   Headphones,
 } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
 import {
@@ -84,6 +86,52 @@ export function AssistantPage() {
     }
   }, [])
 
+  function stopAudioPlayback() {
+    try {
+      stopListening()
+      cancelSpeech()
+      setIsSpeaking(false)
+      playChimeCancel()
+      announce('Voice playback stopped.')
+    } catch (err) {
+      console.warn('Error in stopAudioPlayback:', err)
+    }
+  }
+
+  function handleCloseAssistant() {
+    try {
+      stopAudioPlayback()
+    } catch (err) {
+      console.warn('Error during close cleanup:', err)
+    }
+
+    if (typeof window !== 'undefined' && window.opener) {
+      try {
+        window.close()
+      } catch {
+        // Fallback to navigate
+      }
+    }
+
+    if (window.history.length > 1 && window.history.state && window.history.state.idx > 0) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
+  // Keyboard shortcut: Escape safely closes the Assistant and returns to Dashboard/previous page
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCloseAssistant()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [navigate])
+
   function announce(text: string) {
     setAnnouncement(text)
   }
@@ -97,6 +145,11 @@ export function AssistantPage() {
     }
 
     switch (action.type) {
+      case 'CLOSE':
+        announce('Closing Voice Assistant.')
+        handleCloseAssistant()
+        break
+
       case 'NAVIGATE':
         if (action.target) {
           navigate(action.target)
@@ -159,7 +212,19 @@ export function AssistantPage() {
     const trimmed = queryText.trim()
     if (!trimmed) return
 
-    if (/^(stop listening|disable auto listen|stop hands free|disable hands free|goodbye|bye)\b/i.test(trimmed)) {
+    const isCloseCommand =
+      /^(close|exit|quit|dismiss|leave|bye|goodbye|stop|close tab|close assistant|close voice assistant|close the tab|back to dashboard|go back)$/i.test(trimmed) ||
+      /\b(close|exit|leave|dismiss|quit|hide|shut)\s+(down\s+)?(the\s+|this\s+)?(ai\s+)?(voice\s+)?(assistant|modal|tab|drawer|dialog|page|window)\b/i.test(trimmed) ||
+      /\b(close|exit|dismiss|quit)\s+(the\s+|this\s+)?(ai\s+voice\s+assistant|assistant|voice assistant)\s*(tab|modal|window|dialog|drawer|page)?\b/i.test(trimmed)
+
+    if (isCloseCommand) {
+      setHandsFreeMode(false)
+      announce('Closing Voice Assistant and returning to Dashboard.')
+      handleCloseAssistant()
+      return
+    }
+
+    if (/^(stop listening|disable auto listen|stop hands free|disable hands free)\b/i.test(trimmed)) {
       setHandsFreeMode(false)
       stopListening()
       cancelSpeech()
@@ -320,13 +385,6 @@ export function AssistantPage() {
     }
   }
 
-  function stopAudioPlayback() {
-    cancelSpeech()
-    setIsSpeaking(false)
-    playChimeCancel()
-    announce('Voice playback stopped.')
-  }
-
   function renderMessageContent(text: string) {
     if (!text.includes('```')) {
       return <p>{text}</p>
@@ -363,6 +421,29 @@ export function AssistantPage() {
       {/* Screen Reader Announcements */}
       <div className="visually-hidden" aria-live="assertive" role="status">
         {announcement}
+      </div>
+
+      {/* Page Navigation & Close Controls */}
+      <div className="assistant-page-header-row">
+        <Link
+          to="/"
+          className="back-link assistant-page-back-link"
+          onClick={() => stopAudioPlayback()}
+          aria-label="Back to Dashboard"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span>Back to Dashboard</span>
+        </Link>
+        <button
+          type="button"
+          className="button button-secondary assistant-exit-btn"
+          onClick={handleCloseAssistant}
+          aria-label="Close Assistant and return to Dashboard"
+          title="Close tab (Escape)"
+        >
+          <X size={15} aria-hidden="true" />
+          <span>Close Assistant</span>
+        </button>
       </div>
 
       <PageHeader

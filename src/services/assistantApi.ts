@@ -6,7 +6,7 @@ export interface QuizQuestionItem {
 }
 
 export interface AssistantAction {
-  type: 'NAVIGATE' | 'CREATE_NOTE' | 'SET_ACCESSIBILITY' | 'READ_ALOUD' | 'ANSWER_QUIZ' | 'SPEAK' | 'LOAD_QUIZ'
+  type: 'NAVIGATE' | 'CREATE_NOTE' | 'SET_ACCESSIBILITY' | 'READ_ALOUD' | 'ANSWER_QUIZ' | 'SPEAK' | 'LOAD_QUIZ' | 'CLOSE'
   target?: string
   label?: string
   title?: string

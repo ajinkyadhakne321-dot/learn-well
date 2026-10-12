@@ -18,6 +18,7 @@ export type AssistantAction =
       title: string
       questions: GeneratedQuizQuestion[]
     }
+  | { type: 'CLOSE'; target?: string; label?: string }
 
 export interface AssistantResponse {
   spokenText: string
@@ -358,6 +359,16 @@ export async function processAssistantMessage(
   const requestId = `req-${crypto.randomUUID().slice(0, 8)}`
   const query = userMessage.trim()
 
+  // 0. Direct Close Intent: Fast-path for closing voice assistant / modal / tab
+  if (isExplicitCloseQuery(query)) {
+    console.info(`[${requestId}] Intent: CLOSE`)
+    return {
+      spokenText: 'Closing Voice Assistant.',
+      action: { type: 'CLOSE', target: '/', label: 'Dashboard' },
+      provider: 'offline-agent',
+    }
+  }
+
   // Resolve coreference and pronouns using conversation history
   const { resolvedQuery } = resolveConversationContext(query, context.history)
 
@@ -541,9 +552,20 @@ Student Query: "${resolvedQuery}"`
   return response
 }
 
-function isExplicitNavigationQuery(query: string): boolean {
+export function isExplicitCloseQuery(query: string): boolean {
+  const lower = query.toLowerCase().trim()
+  return (
+    /^(close|exit|dismiss|leave|quit|hide|shut|go back|back to dashboard|close assistant|close tab|close voice assistant|close the tab)$/i.test(lower) ||
+    /\b(close|exit|leave|dismiss|quit|hide|shut)\s+(down\s+)?(the\s+|this\s+)?(ai\s+)?(voice\s+)?(assistant|modal|dialog|tab|drawer|page|window)\b/i.test(lower) ||
+    /\b(close|exit|dismiss|quit)\s+(the\s+|this\s+)?(ai\s+voice\s+assistant|assistant|voice assistant)\s*(tab|modal|window|dialog|drawer|page)?\b/i.test(lower) ||
+    /\b(close|exit)\s+the\s+ai\b/i.test(lower)
+  )
+}
+
+export function isExplicitNavigationQuery(query: string): boolean {
   const lower = query.toLowerCase()
   return (
+    isExplicitCloseQuery(query) ||
     /\b(go to|open|show me|take me to|navigate to)\b/.test(lower) ||
     /\b(take me to|open up)\s+(the\s+)?(notes|quiz|assignments|calendar|materials|subjects|profile|progress|accessibility|settings|dashboard|home)\b/.test(lower)
   )
@@ -558,7 +580,16 @@ async function processOfflineAccessibilityIntent(
   const lower = rawQuery.toLowerCase()
   const resolvedLower = resolvedQuery.toLowerCase()
 
-  // 1. Explicit Navigation Intents
+  // 1. Explicit Close Intents
+  if (isExplicitCloseQuery(rawQuery)) {
+    return {
+      spokenText: 'Closing Voice Assistant.',
+      action: { type: 'CLOSE', target: '/', label: 'Dashboard' },
+      provider: 'offline-agent',
+    }
+  }
+
+  // 2. Explicit Navigation Intents
   if (isExplicitNavigationQuery(rawQuery)) {
     if (lower.includes('note')) {
       return {

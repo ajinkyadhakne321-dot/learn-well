@@ -230,7 +230,11 @@ export function speakText(
  */
 export function cancelSpeech() {
   if (isSpeechSynthesisSupported()) {
-    window.speechSynthesis.cancel()
+    try {
+      window.speechSynthesis.cancel()
+    } catch (err) {
+      console.warn('cancelSpeech error:', err)
+    }
     activeUtterance = null
   }
 }

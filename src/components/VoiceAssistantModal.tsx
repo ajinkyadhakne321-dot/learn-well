@@ -106,6 +106,20 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     }
   }, [])
 
+  // Global Escape key listener to close modal from anywhere when open
+  useEffect(() => {
+    if (!isOpen) return
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown, true)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true)
+  }, [isOpen])
+
   function announce(text: string) {
     setAnnouncement(text)
   }
@@ -120,12 +134,17 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     }
 
     switch (action.type) {
+      case 'CLOSE':
+        announce('Closing Voice Assistant.')
+        handleClose()
+        break
+
       case 'NAVIGATE':
         if (action.target) {
           navigate(action.target)
           announce(`Navigated to ${action.label || action.target}`)
           // Close modal on navigation if user asked to go somewhere
-          setTimeout(() => onClose(), 600)
+          setTimeout(() => handleClose(), 600)
         }
         break
 
@@ -185,7 +204,19 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     const trimmed = queryText.trim()
     if (!trimmed) return
 
-    if (/^(stop listening|disable auto listen|stop hands free|disable hands free|goodbye|bye)\b/i.test(trimmed)) {
+    const isCloseCommand =
+      /^(close|exit|quit|dismiss|leave|bye|goodbye|stop|close tab|close assistant|close voice assistant|close the tab)$/i.test(trimmed) ||
+      /\b(close|exit|leave|dismiss|quit|hide|shut)\s+(down\s+)?(the\s+|this\s+)?(ai\s+)?(voice\s+)?(assistant|modal|tab|drawer|dialog|window)\b/i.test(trimmed) ||
+      /\b(close|exit|dismiss|quit)\s+(the\s+|this\s+)?(ai\s+voice\s+assistant|assistant|voice assistant)\s*(tab|modal|window|dialog|drawer)?\b/i.test(trimmed)
+
+    if (isCloseCommand) {
+      setHandsFreeMode(false)
+      announce('Closing Voice Assistant.')
+      handleClose()
+      return
+    }
+
+    if (/^(stop listening|disable auto listen|stop hands free|disable hands free)\b/i.test(trimmed)) {
       setHandsFreeMode(false)
       stopListening()
       cancelSpeech()
@@ -355,10 +386,24 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
   }
 
   function stopAudioPlayback() {
-    cancelSpeech()
-    setIsSpeaking(false)
-    playChimeCancel()
-    announce('Audio playback stopped.')
+    try {
+      stopListening()
+      cancelSpeech()
+      setIsSpeaking(false)
+      playChimeCancel()
+      announce('Audio playback stopped.')
+    } catch (err) {
+      console.warn('Error in stopAudioPlayback:', err)
+    }
+  }
+
+  function handleClose() {
+    try {
+      stopAudioPlayback()
+    } catch (err) {
+      console.warn('Error during modal close cleanup:', err)
+    }
+    onClose()
   }
 
   function renderMessageContent(text: string) {
@@ -392,17 +437,25 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     )
   }
 
+  if (!isOpen) {
+    return null
+  }
+
   return (
     <div
       className="assistant-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="assistant-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose()
+        }
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation()
-          stopAudioPlayback()
-          onClose()
+          handleClose()
         }
       }}
     >
@@ -493,10 +546,7 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
             <button
               type="button"
               className="icon-button close-assistant-btn"
-              onClick={() => {
-                stopAudioPlayback()
-                onClose()
-              }}
+              onClick={handleClose}
               aria-label="Close Voice Assistant (or press Escape)"
               title="Close (Escape)"
             >
