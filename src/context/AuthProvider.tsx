@@ -1,6 +1,6 @@
 import { useEffect, useState, type PropsWithChildren } from 'react'
 import { AuthContext, type AuthStatus } from './AuthContext'
-import { AuthApiError, authApi, type AuthUser } from '../services/authApi'
+import { AuthApiError, authApi, type AuthUser, type UserRole } from '../services/authApi'
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -37,7 +37,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setError('')
   }
 
-  async function register(details: { name: string; email: string; password: string }) {
+  async function register(details: {
+    name: string
+    email: string
+    password: string
+    role?: UserRole
+    teacherCode?: string
+  }) {
     const result = await authApi.register(details)
     setUser(result.user)
     setStatus('authenticated')

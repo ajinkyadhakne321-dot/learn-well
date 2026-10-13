@@ -1225,3 +1225,369 @@ progress::-moz-progress-bar { background: #26705c; }
   color: #ffffff;
   border: 2px solid #ffffff;
 }
+
+/* ==========================================================================
+   PORTAL SELECTION & TEACHER DASHBOARD STYLES
+   ========================================================================== */
+
+.portal-selection-panel {
+  width: min(100%, 840px);
+  padding: 36px 32px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+
+.portal-selection-panel h1 {
+  margin: 0 0 10px;
+  font-size: calc(30px * var(--text-scale, 1));
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 28px;
+}
+
+@media (max-width: 680px) {
+  .portal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.portal-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: #fbfdfb;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.portal-card:hover, .portal-card:focus-within {
+  border-color: var(--teal);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(24, 92, 77, 0.09);
+}
+
+.portal-card-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 8px;
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: #eef3ef;
+  color: #27473d;
+  margin-bottom: 14px;
+}
+
+.portal-card-badge.badge-teacher {
+  background: #e4ebf5;
+  color: #173866;
+}
+
+.portal-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.portal-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: #e7f2ed;
+  color: var(--teal);
+}
+
+.portal-card.teacher-card .portal-card-icon {
+  background: #e1ebf7;
+  color: #1d4ed8;
+}
+
+.portal-card h2 {
+  margin: 0;
+  font-size: calc(20px * var(--text-scale, 1));
+  color: var(--ink);
+}
+
+.portal-card-desc {
+  margin: 0 0 20px;
+  color: #45534e;
+  font-size: calc(14px * var(--text-scale, 1));
+  line-height: 1.5;
+  flex-grow: 1;
+}
+
+.portal-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.portal-card-actions .button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Secondary Button Style */
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: calc(14px * var(--text-scale, 1));
+  font-weight: 600;
+  color: var(--ink);
+  background: #f4f6f4;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.button-secondary:hover {
+  background: #e9ece8;
+  border-color: #adb9b3;
+}
+
+.button-secondary:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* Teacher Dashboard Specific Styles */
+.teacher-topbar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 700;
+  border-radius: 3px;
+}
+
+.stat-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-card-title {
+  margin: 0;
+  color: #556660;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-card-value {
+  margin: 8px 0 4px;
+  font-size: calc(28px * var(--text-scale, 1));
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.stat-card-hint {
+  margin: 0;
+  color: #667770;
+  font-size: calc(12px * var(--text-scale, 1));
+}
+
+.tab-nav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--line);
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: inherit;
+  font-size: calc(14px * var(--text-scale, 1));
+  font-weight: 600;
+  color: #4a5c54;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab-btn:hover {
+  color: var(--teal);
+}
+
+.tab-btn.tab-active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+  font-weight: 700;
+}
+
+.tab-btn:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* Modal Dialog for Preview and Content Creation */
+.accessible-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 28, 24, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.accessible-modal-content {
+  position: relative;
+  width: min(100%, 720px);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 28px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.accessible-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.accessible-modal-header h2 {
+  margin: 0;
+  font-size: calc(22px * var(--text-scale, 1));
+}
+
+.accessible-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 18px;
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  color: #78350f;
+  font-size: calc(13px * var(--text-scale, 1));
+  font-weight: 600;
+  border-radius: 3px;
+}
+
+.preview-box {
+  padding: 20px;
+  background: #f9fbf9;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin: 16px 0;
+}
+
+.preview-box h3 {
+  margin: 0 0 10px;
+  font-size: calc(18px * var(--text-scale, 1));
+  color: var(--teal);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: calc(14px * var(--text-scale, 1));
+}
+
+.data-table th, .data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table th {
+  background: #f4f7f5;
+  font-weight: 700;
+  color: #273b33;
+}
+
+.data-table tr:hover td {
+  background: #f9fbf9;
+}
+
+.badge-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 600;
+  border-radius: 12px;
+}
+
+.badge-submitted {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-graded {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-priority-high {
+  background: #fee2e2;
+  color: #991b1b;
+}

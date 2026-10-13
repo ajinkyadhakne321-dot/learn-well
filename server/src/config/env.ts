@@ -11,6 +11,7 @@ const environmentSchema = z.object({
   SESSION_SECRET: z.string().min(32),
   CLIENT_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
   GEMINI_API_KEY: z.string().optional(),
+  TEACHER_INVITE_CODE: z.string().default('LEARNWELL-TEACHER-2026'),
 })
 
 const parsedEnvironment = environmentSchema.safeParse(process.env)
@@ -28,4 +29,5 @@ export const env = {
   sessionSecret: parsedEnvironment.data.SESSION_SECRET,
   clientOrigins: parsedEnvironment.data.CLIENT_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
   geminiApiKey: parsedEnvironment.data.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+  teacherInviteCode: parsedEnvironment.data.TEACHER_INVITE_CODE,
 }

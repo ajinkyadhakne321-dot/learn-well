@@ -1,8 +1,10 @@
+export type UserRole = 'student' | 'teacher'
+
 export type PublicUser = {
   id: string
   name: string
   email: string
-  role: 'student'
+  role: UserRole
   createdAt: string
 }
 
@@ -11,7 +13,7 @@ export type UserRow = {
   name: string
   email: string
   password_hash: string
-  role: 'student'
+  role: UserRole
   created_at: Date
 }
 

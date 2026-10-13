@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { AuthUser } from '../services/authApi'
+import type { AuthUser, UserRole } from '../services/authApi'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
 
@@ -8,7 +8,13 @@ export type AuthContextValue = {
   status: AuthStatus
   error: string
   login: (credentials: { email: string; password: string }) => Promise<void>
-  register: (details: { name: string; email: string; password: string }) => Promise<void>
+  register: (details: {
+    name: string
+    email: string
+    password: string
+    role?: UserRole
+    teacherCode?: string
+  }) => Promise<void>
   logout: () => Promise<void>
   retrySession: () => void
 }

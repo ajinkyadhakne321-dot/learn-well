@@ -10,9 +10,17 @@ import helmet from 'helmet'
 import { env } from './config/env.js'
 import { pool } from './db/pool.js'
 import { errorHandler, HttpError } from './middleware/errorHandler.js'
-import { authRouter } from './routes/auth.routes.js'
-import { healthRouter } from './routes/health.routes.js'
+import { announcementRouter } from './routes/announcement.routes.js'
 import { assistantRouter } from './routes/assistant.routes.js'
+import { assignmentRouter } from './routes/assignment.routes.js'
+import { authRouter } from './routes/auth.routes.js'
+import { courseRouter } from './routes/course.routes.js'
+import { healthRouter } from './routes/health.routes.js'
+import { materialRouter } from './routes/material.routes.js'
+import { noteRouter } from './routes/note.routes.js'
+import { quizRouter } from './routes/quiz.routes.js'
+import { statsRouter } from './routes/stats.routes.js'
+import { teacherAiRouter } from './routes/teacherAi.routes.js'
 
 const require = createRequire(import.meta.url)
 const session = require('express-session') as (options?: SessionOptions) => RequestHandler
@@ -67,7 +75,8 @@ app.use((request, response, next) => {
   })(request, response, next)
 })
 
-app.use(express.json({ limit: '10kb' }))
+app.use(express.json({ limit: '5mb' }))
+app.use(express.urlencoded({ extended: true, limit: '5mb' }))
 app.use(session({
   name: 'learnwell.sid',
   store: new PgSessionStore({ pool, createTableIfMissing: true }),
@@ -82,9 +91,19 @@ app.use(session({
   },
 }))
 
+// Mount API routes
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)
+app.use('/api/courses', courseRouter)
+app.use('/api/materials', materialRouter)
+app.use('/api/assignments', assignmentRouter)
+app.use('/api/quizzes', quizRouter)
+app.use('/api/announcements', announcementRouter)
+app.use('/api/notes', noteRouter)
+app.use('/api/teacher/ai', teacherAiRouter)
+app.use('/api/stats', statsRouter)
 app.use('/api/assistant', assistantRouter)
+
 app.use('/api', (_request, _response, next) => next(new HttpError(404, 'API route not found')))
 
 if (fs.existsSync(distPath)) {

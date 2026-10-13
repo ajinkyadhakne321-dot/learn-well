@@ -1,12 +1,15 @@
+export type UserRole = 'student' | 'teacher'
+
 export type AuthUser = {
   id: string
   name: string
   email: string
-  role: 'student'
+  role: UserRole
   createdAt: string
 }
 
 type AuthResponse = { user: AuthUser }
+type MessageResponse = { message: string; resetToken?: string }
 type ApiErrorResponse = { error?: string }
 
 export class AuthApiError extends Error {
@@ -45,6 +48,17 @@ async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown):
 export const authApi = {
   currentUser: () => request<AuthResponse>('me', 'GET'),
   login: (credentials: { email: string; password: string }) => request<AuthResponse>('login', 'POST', credentials),
-  register: (details: { name: string; email: string; password: string }) => request<AuthResponse>('register', 'POST', details),
+  register: (details: {
+    name: string
+    email: string
+    password: string
+    role?: UserRole
+    teacherCode?: string
+  }) => request<AuthResponse>('register', 'POST', details),
   logout: () => request<void>('logout', 'POST'),
+  forgotPassword: (email: string) => request<MessageResponse>('forgot-password', 'POST', { email }),
+  resetPassword: (payload: { token: string; password: string }) =>
+    request<MessageResponse>('reset-password', 'POST', payload),
+  changePassword: (payload: { currentPassword: string; newPassword: string }) =>
+    request<MessageResponse>('change-password', 'POST', payload),
 }

@@ -2,7 +2,14 @@ import type { Request, RequestHandler } from 'express'
 import { z } from 'zod'
 import { env } from '../config/env.js'
 import { HttpError } from '../middleware/errorHandler.js'
-import { authenticateUser, findUserById, registerUser } from '../services/auth.service.js'
+import {
+  authenticateUser,
+  createPasswordResetToken,
+  findUserById,
+  registerUser,
+  resetPasswordWithToken,
+  updatePassword,
+} from '../services/auth.service.js'
 import { toPublicUser } from '../types/user.js'
 
 const emailSchema = z.string().trim().email().max(254)
@@ -12,11 +19,27 @@ const registrationSchema = z.object({
   name: z.string().trim().min(1).max(100),
   email: emailSchema,
   password: passwordSchema,
+  role: z.enum(['student', 'teacher']).default('student'),
+  teacherCode: z.string().optional(),
 })
 
 const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(72).refine((password) => Buffer.byteLength(password, 'utf8') <= 72, 'Password must be at most 72 bytes'),
+})
+
+const forgotPasswordSchema = z.object({
+  email: emailSchema,
+})
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(10),
+  password: passwordSchema,
+})
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema,
 })
 
 function establishSession(request: Request, userId: string): Promise<void> {
@@ -34,7 +57,7 @@ function establishSession(request: Request, userId: string): Promise<void> {
 
 export const register: RequestHandler = async (request, response) => {
   const input = registrationSchema.parse(request.body)
-  const user = await registerUser(input.name, input.email, input.password)
+  const user = await registerUser(input.name, input.email, input.password, input.role, input.teacherCode)
   await establishSession(request, user.id)
   response.status(201).json({ user: toPublicUser(user) })
 }
@@ -70,4 +93,29 @@ export const currentUser: RequestHandler = async (request, response) => {
     throw new HttpError(401, 'Authentication is required')
   }
   response.json({ user: toPublicUser(user) })
+}
+
+export const forgotPassword: RequestHandler = async (request, response) => {
+  const input = forgotPasswordSchema.parse(request.body)
+  const result = await createPasswordResetToken(input.email)
+  // For security, do not expose whether the email exists, but return message and token in dev for convenience
+  response.json({
+    message: 'If an account exists with this email, password reset instructions have been generated.',
+    // Provide reset token in response during dev/test for easy verification
+    ...(env.nodeEnv !== 'production' && result ? { resetToken: result.token } : {}),
+  })
+}
+
+export const resetPassword: RequestHandler = async (request, response) => {
+  const input = resetPasswordSchema.parse(request.body)
+  await resetPasswordWithToken(input.token, input.password)
+  response.json({ message: 'Password has been successfully reset. You may now sign in with your new password.' })
+}
+
+export const changePassword: RequestHandler = async (request, response) => {
+  const userId = request.session.userId
+  if (!userId) throw new HttpError(401, 'Authentication is required')
+  const input = changePasswordSchema.parse(request.body)
+  await updatePassword(userId, input.currentPassword, input.newPassword)
+  response.json({ message: 'Password successfully updated.' })
 }
