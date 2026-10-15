@@ -28,6 +28,9 @@ export const env = {
   databaseSsl: parsedEnvironment.data.DATABASE_SSL,
   sessionSecret: parsedEnvironment.data.SESSION_SECRET,
   clientOrigins: parsedEnvironment.data.CLIENT_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
-  geminiApiKey: parsedEnvironment.data.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+  geminiApiKey: (parsedEnvironment.data.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '')
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .trim(),
   teacherInviteCode: parsedEnvironment.data.TEACHER_INVITE_CODE,
 }
