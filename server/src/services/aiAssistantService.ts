@@ -533,10 +533,9 @@ function logAssistantDiagnostics(diag: DiagnosticRecord) {
 
   const GEMINI_CANDIDATE_MODELS = [
     'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
     'gemini-3.7-flash',
     'gemini-3.8-flash',
-    'gemini-flash-latest',
-    'gemini-2.5-flash-lite',
   ]
   let activeModelId = GEMINI_CANDIDATE_MODELS[0]
   let geminiCandidate: AssistantResponse | null = null
@@ -587,7 +586,10 @@ Student Query: "${resolvedQuery}"`
           systemInstruction: SYSTEM_PROMPT,
         })
 
-        const result = await model.generateContent(prompt)
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT_EXCEEDED')), 6500)
+        )
+        const result = await Promise.race([model.generateContent(prompt), timeoutPromise])
         const text = result.response.text()
         activeModelId = candidateModel
 
@@ -651,7 +653,11 @@ Student Query: "${resolvedQuery}"`
         }
       } catch (error) {
         geminiError = error instanceof Error ? error.message : String(error)
-        console.warn(`[${requestId}] Gemini candidate ${candidateModel} failed or timed out: ${geminiError}, trying next candidate.`)
+        console.warn(`[${requestId}] Gemini candidate ${candidateModel} failed or timed out: ${geminiError}`)
+        if (geminiError.includes('429') || geminiError.includes('Quota exceeded') || geminiError.includes('API_KEY_INVALID')) {
+          console.warn(`[${requestId}] API quota or key issue detected. Fast-falling back to verified knowledge engine.`)
+          break
+        }
       }
     }
 
@@ -748,6 +754,14 @@ async function processOfflineAccessibilityIntent(
     return {
       spokenText: 'Closing Voice Assistant.',
       action: { type: 'CLOSE', target: '/', label: 'Dashboard' },
+      provider: 'offline-agent',
+    }
+  }
+
+  // 1b. Conversational Greetings
+  if (/^(hi|hello|hey|hey there|greetings|good (morning|afternoon|evening)|howdy)\b/i.test(rawQuery.trim().replace(/[!?.]+$/, ''))) {
+    return {
+      spokenText: 'Hello! I am your LearnWell Voice Assistant. How can I help you today? You can ask me academic questions about your syllabus, ask me to take notes, or guide you through your courses.',
       provider: 'offline-agent',
     }
   }

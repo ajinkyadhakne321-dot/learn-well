@@ -332,6 +332,47 @@ with open("sample.txt", "a") as file:
     summary:
       'Difference Between For Loop and While Loop:\n\n1. Iteration Type:\n   - For Loop: Definite iteration (known number of repetitions or fixed collection).\n   - While Loop: Indefinite iteration (repeats until condition evaluates to false).\n2. Loop Variable:\n   - For Loop: Automatically managed via iteration constructs or ranges.\n   - While Loop: Manually initialized before the loop and updated inside the body.\n3. Risk of Infinite Loop:\n   - For Loop: Very low since sequence length is finite.\n   - While Loop: High if loop condition is never updated to false.\n4. Example Use Cases:\n   - For Loop: Processing every item in a list or array.\n   - While Loop: Polling user input or waiting for a network response.',
   },
+  {
+    id: 'mode-formula-frequency-distribution',
+    title: 'Mode Formula for Frequency Distribution (Grouped Data)',
+    matchPatterns: [
+      /\bmode\b.*\b(formula|frequency\s+distribution|grouped\s+data)\b/i,
+      /\b(formula|frequency\s+distribution|grouped\s+data)\b.*\bmode\b/i,
+      /\b(calculate|find|compute)\b.*\bmode\b.*\b(frequency|table|grouped)\b/i,
+      /\bmode\s+formula\b/i,
+    ],
+    spokenText:
+      'For a continuous frequency distribution or grouped data, the Mode is calculated using the formula: Mode equals L plus, open bracket, f1 minus f0, divided by 2 times f1 minus f0 minus f2, close bracket, multiplied by h. In this formula, L is the lower limit of the modal class, which is the class interval having the highest frequency. f1 is the frequency of the modal class. f0 is the frequency of the class preceding the modal class. f2 is the frequency of the class succeeding the modal class, and h is the class width. For example, if a distribution has class intervals with frequencies, and the modal class is 20 to 30 with highest frequency 15, lower limit 20, preceding frequency 8, succeeding frequency 7, and class width 10, the mode is 20 plus, 15 minus 8 divided by 30 minus 8 minus 7, times 10, which evaluates to 20 plus 4.67, giving approximately 24.67.',
+    summary:
+      '### Mode Formula for Grouped Frequency Distribution\n\n$$\\text{Mode} = L + \\left[ \\frac{f_1 - f_0}{2f_1 - f_0 - f_2} \\right] \\times h$$\n\nWhere:\n- **$L$**: Lower class limit of the modal class (the class with maximum frequency)\n- **$f_1$**: Frequency of the modal class\n- **$f_0$**: Frequency of the class preceding the modal class\n- **$f_2$**: Frequency of the class succeeding the modal class\n- **$h$**: Width / size of the modal class interval\n\n#### Example:\nGiven frequency distribution:\n- Class 10–20: Frequency = 8 ($f_0$)\n- Class **20–30**: Frequency = **15** ($f_1$, Modal Class, $L = 20$)\n- Class 30–40: Frequency = 7 ($f_2$)\n- Class width ($h$) = 10\n\n$$\\text{Mode} = 20 + \\left[ \\frac{15 - 8}{2(15) - 8 - 7} \\right] \\times 10 = 20 + \\left[ \\frac{7}{30 - 15} \\right] \\times 10 = 20 + \\frac{70}{15} \\approx 24.67$$',
+  },
+  {
+    id: 'linear-data-structures',
+    title: 'Linear Data Structures in Computer Science',
+    matchPatterns: [
+      /\blinear\s*(data\s*)?structures?\b/i,
+      /\blinear\s+structures?\s+in\s+data\s+structures?\b/i,
+      /\blinear\s+(versus|vs|and)\s+non[- ]linear\s+data\s+structures?\b/i,
+      /\btypes\s+of\s+linear\s+data\s+structures?\b/i,
+    ],
+    spokenText:
+      'In data structures, a linear data structure is a structure where data elements are organized sequentially or linearly, meaning each element is attached to its previous and next adjacent elements. All elements can be traversed in a single run. The four fundamental linear data structures are: Arrays, which store elements in contiguous memory with constant-time index access O(1); Linked Lists, where elements are stored in nodes connected by pointers; Stacks, which follow the Last-In First-Out or LIFO principle; and Queues, which follow the First-In First-Out or FIFO principle. In contrast, non-linear data structures, such as Trees and Graphs, arrange elements hierarchically or interconnectedly across multiple levels.',
+    summary:
+      '### Linear Data Structures in Computer Science\n\nA **linear data structure** arranges data elements sequentially where every element has a unique predecessor and successor (except the first and last).\n\n#### Core Linear Data Structures:\n1. **Arrays**: Fixed-size contiguous memory locations supporting $O(1)$ random index access.\n2. **Linked Lists**: Dynamic sequence of nodes connected via pointers (Singly, Doubly, Circular).\n3. **Stacks**: LIFO (Last In, First Out) collection with `push()` and `pop()` operations at the top.\n4. **Queues**: FIFO (First In, First Out) collection with `enqueue()` at the rear and `dequeue()` at the front.\n\n#### Linear vs Non-Linear Comparison:\n- **Traversal**: Linear can be traversed in a single pass; Non-linear (Trees, Graphs) requires hierarchical or multi-branch traversal.\n- **Memory**: Linear structures are sequential; Non-linear structures represent complex parent-child or network relationships.\n- **Search Complexity**: Linear search requires $O(n)$; Balanced tree search achieves $O(\\log n)$.',
+  },
+  {
+    id: 'measures-of-central-tendency',
+    title: 'Measures of Central Tendency: Mean, Median, and Mode',
+    matchPatterns: [
+      /\b(measures?\s+of\s+central\s+tendency|mean\s+median\s+and?\s+mode)\b/i,
+      /\bwhat\s+are\s+the\s+measures\s+of\s+central\s+tendency\b/i,
+      /\bcentral\s+tendency\b/i,
+    ],
+    spokenText:
+      'The three primary measures of central tendency in statistics are Mean, Median, and Mode. The Mean is the arithmetic average, calculated by dividing the sum of all values by the total count. The Median is the middle observation when data is arranged in numerical order, splitting the dataset into two equal halves. The Mode is the most frequently occurring value in the dataset. In a moderately skewed distribution, Karl Pearson empirical formula states that Mode approximately equals 3 times the Median minus 2 times the Mean.',
+    summary:
+      '### Measures of Central Tendency\n\n1. **Mean ($\\bar{X}$)**: Arithmetic average.\n   - Ungrouped: $\\bar{X} = \\frac{\\sum X}{N}$\n   - Grouped: $\\bar{X} = \\frac{\\sum f X}{N}$\n2. **Median ($M$)**: Central value dividing ordered data into two equal halves.\n   - Grouped: $L + \\left[ \\frac{N/2 - cf}{f} \\right] \\times h$\n3. **Mode ($Z$)**: Most frequent value in the dataset.\n   - Grouped: $L + \\left[ \\frac{f_1 - f_0}{2f_1 - f_0 - f_2} \\right] \\times h$\n4. **Empirical Relationship (Karl Pearson)**:\n   $$\\text{Mode} \\approx 3(\\text{Median}) - 2(\\text{Mean})$$',
+  },
 ]
 
 // Built-in high-frequency universal facts
@@ -497,7 +538,10 @@ async function fetchWikipediaSummary(topic: string, originalQuery: string): Prom
       const topResult = searchData.query?.search?.[0]
       if (topResult && topResult.title && topResult.title.toLowerCase() !== topic.toLowerCase()) {
         const snippetLower = topResult.snippet.toLowerCase()
-        if (!NON_ACADEMIC_CATEGORIES.some((cat) => snippetLower.includes(cat))) {
+        if (
+          !NON_ACADEMIC_CATEGORIES.some((cat) => snippetLower.includes(cat)) &&
+          isWikipediaArticleRelevant(topic, topResult.title)
+        ) {
           return fetchWikipediaSummary(topResult.title, originalQuery)
         }
       }
@@ -511,10 +555,57 @@ async function fetchWikipediaSummary(topic: string, originalQuery: string): Prom
   return null
 }
 
+const QUERY_FILTER_WORDS = new Set([
+  'the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'in', 'of', 'for', 'to', 'what',
+  'how', 'why', 'can', 'you', 'tell', 'me', 'explain', 'give', 'about', 'with', 'from',
+  'this', 'that', 'these', 'those', 'are', 'was', 'were', 'it', 'its', 'be', 'been',
+  'does', 'do', 'did', 'have', 'has', 'had', 'example', 'examples', 'please', 'define',
+  'describe', 'formula',
+])
+
+function isWikipediaArticleRelevant(topic: string, articleTitle: string): boolean {
+  const cleanTopic = topic.toLowerCase()
+  const cleanTitle = articleTitle.toLowerCase()
+
+  if (cleanTopic === cleanTitle || cleanTitle.includes(cleanTopic) || cleanTopic.includes(cleanTitle)) {
+    return true
+  }
+
+  const topicTokens = cleanTopic
+    .split(/[\s,?.!;:()"-]+/)
+    .filter((t) => t.length > 2 && !QUERY_FILTER_WORDS.has(t))
+
+  if (topicTokens.length === 0) return false
+
+  const titleTokens = new Set(
+    cleanTitle.split(/[\s,?.!;:()"-]+/).filter((t) => t.length > 2)
+  )
+
+  let matches = 0
+  for (const token of topicTokens) {
+    if (titleTokens.has(token) || cleanTitle.includes(token)) {
+      matches++
+    }
+  }
+
+  const requiredMatches = topicTokens.length <= 2 ? 1 : 2
+  return matches >= requiredMatches
+}
+
 /**
  * Answers universal & general knowledge questions
  */
 export async function answerUniversalQuestion(query: string): Promise<UniversalAnswer | null> {
+  // 0. Handle greetings immediately
+  if (/^(hi|hello|hey|hey there|greetings|good (morning|afternoon|evening)|howdy)\b/i.test(query.trim())) {
+    return {
+      title: 'LEARNWELL ASSISTANT',
+      summary: 'Hello! I am your LearnWell Voice Assistant. How can I help you today? You can ask me academic questions about your syllabus, ask me to take notes, or guide you through your courses.',
+      spokenText: 'Hello! I am your LearnWell Voice Assistant. How can I help you today? You can ask me academic questions about your syllabus, ask me to take notes, or guide you through your courses.',
+      source: 'local-encyclopedia',
+    }
+  }
+
   // 1. First check our verified BCA Curriculum Knowledge base
   const bcaMatch = matchBcaCurriculum(query)
   if (bcaMatch) {
@@ -524,9 +615,10 @@ export async function answerUniversalQuestion(query: string): Promise<UniversalA
   const topic = extractTopic(query)
   if (!topic || topic.length < 2) return null
 
-  // 2. Check curated general knowledge concepts
+  // 2. Check curated general knowledge concepts (exact or full-word token boundary only, NEVER substring of key)
   for (const [key, answer] of Object.entries(CURATED_KNOWLEDGE)) {
-    if (topic === key || topic.includes(key) || key.includes(topic)) {
+    const keyRegex = new RegExp(`(^|\\b)${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\b|$)`, 'i')
+    if (topic === key || keyRegex.test(topic)) {
       return {
         title: key.toUpperCase(),
         summary: answer,

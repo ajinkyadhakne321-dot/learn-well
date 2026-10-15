@@ -7,7 +7,7 @@
     "dev": "vite",
     "server:dev": "tsx watch server/src/index.ts",
     "build": "npm run server:build && tsc -b && vite build",
-    "server:build": "tsc -p server/tsconfig.json && node -e \"fs.copyFileSync('server/src/db/schema.sql', 'server/dist/db/schema.sql')\"",
+    "server:build": "tsc -p server/tsconfig.json && node -e \"fs.cpSync('server/src/data', 'server/dist/data', { recursive: true, force: true }); fs.copyFileSync('server/src/db/schema.sql', 'server/dist/db/schema.sql')\"",
     "server:start": "node server/dist/index.js",
     "db:migrate": "tsx server/src/db/migrate.ts",
     "db:seed": "tsx server/src/db/seed.ts",

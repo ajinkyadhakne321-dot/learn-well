@@ -34,13 +34,22 @@ let cachedDocuments: SyllabusDocument[] = []
 function loadSyllabusData(): SyllabusDocument[] {
   if (cachedDocuments.length > 0) return cachedDocuments
 
-  const dataPath = path.resolve(__dirname, '../data/extractedSyllabus.json')
-  if (fs.existsSync(dataPath)) {
-    try {
-      const raw = fs.readFileSync(dataPath, 'utf-8')
-      cachedDocuments = JSON.parse(raw) as SyllabusDocument[]
-    } catch (err) {
-      console.warn('Failed to parse extractedSyllabus.json:', err)
+  const candidatePaths = [
+    path.resolve(__dirname, '../data/extractedSyllabus.json'),
+    path.resolve(__dirname, '../../src/data/extractedSyllabus.json'),
+    path.resolve(process.cwd(), 'server/dist/data/extractedSyllabus.json'),
+    path.resolve(process.cwd(), 'server/src/data/extractedSyllabus.json'),
+  ]
+
+  for (const dataPath of candidatePaths) {
+    if (fs.existsSync(dataPath)) {
+      try {
+        const raw = fs.readFileSync(dataPath, 'utf-8')
+        cachedDocuments = JSON.parse(raw) as SyllabusDocument[]
+        break
+      } catch (err) {
+        console.warn('Failed to parse extractedSyllabus.json from', dataPath, err)
+      }
     }
   }
 
