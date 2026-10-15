@@ -310,6 +310,169 @@ async function main() {
     }
   })
 
+  // --- Task 6 Dedicated Tests: 7 Target Questions ---
+  console.log('\n--- 🎯 TASK 6 VERIFICATION: 7 INDEPENDENT TARGET QUESTIONS ---\n')
+
+  // Target Q1: What is SDLC?
+  await runTest('Task 6.1: What is SDLC?', async () => {
+    const syllabusMatches = searchSyllabus('What is SDLC?')
+    for (const m of syllabusMatches) {
+      assert(
+        m.subject === 'software engineering' || m.title.toLowerCase().includes('software'),
+        `SDLC must only match software engineering syllabus materials, got: ${m.title}`
+      )
+    }
+
+    const res = await processAssistantMessage('What is SDLC?')
+    const text = res.spokenText.toLowerCase()
+    assert(
+      text.includes('software development life cycle') || text.includes('sdlc'),
+      'Response must explain Software Development Life Cycle'
+    )
+    assert(
+      text.includes('phase') || text.includes('stage') || text.includes('planning') || text.includes('testing'),
+      'Response must describe SDLC phases or stages'
+    )
+    assert(!text.includes('loop'), 'Must NOT contain loop content')
+    assert.strictEqual(res.action, undefined, 'SDLC question must not trigger navigation')
+  })
+
+  // Target Q2: What are the types of cloud deployment?
+  await runTest('Task 6.2: What are the types of cloud deployment?', async () => {
+    const syllabusMatches = searchSyllabus('What are the types of cloud deployment?')
+    for (const m of syllabusMatches) {
+      assert(
+        m.subject === 'aiml' || m.subject === 'cloud' || m.title.toLowerCase().includes('cloud'),
+        `Cloud deployment query must only match cloud materials, got: ${m.title}`
+      )
+    }
+
+    const res = await processAssistantMessage('What are the types of cloud deployment?')
+    const text = res.spokenText.toLowerCase()
+    assert(
+      text.includes('public') && text.includes('private') && text.includes('hybrid'),
+      'Response must explain Public, Private, and Hybrid cloud models'
+    )
+    assert(!text.includes('loop'), 'Must NOT return Python loops')
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
+  // Target Q3: What is private cloud deployment?
+  await runTest('Task 6.3: What is private cloud deployment?', async () => {
+    const syllabusMatches = searchSyllabus('What is private cloud deployment?')
+    for (const m of syllabusMatches) {
+      assert(
+        m.subject === 'aiml' || m.subject === 'cloud' || m.title.toLowerCase().includes('cloud'),
+        `Private cloud query must only match cloud materials, got: ${m.title}`
+      )
+    }
+
+    const res = await processAssistantMessage('What is private cloud deployment?')
+    const text = res.spokenText.toLowerCase()
+    assert(
+      text.includes('private') && (text.includes('single') || text.includes('dedicated') || text.includes('organization')),
+      'Response must explain private cloud as dedicated to a single organization'
+    )
+    assert(!text.includes('for loop') && !text.includes('while loop'), 'Must NOT return Python loops')
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
+  // Target Q4: Explain file handling in Python using code.
+  await runTest('Task 6.4: Explain file handling in Python using code.', async () => {
+    const syllabusMatches = searchSyllabus('Explain file handling in Python using code.')
+    assert.strictEqual(
+      syllabusMatches.length,
+      0,
+      `File handling must NOT match Python loops syllabus material (matched ${syllabusMatches.length})`
+    )
+
+    const res = await processAssistantMessage('Explain file handling in Python using code.')
+    const text = res.spokenText.toLowerCase()
+
+    assert(
+      text.includes('file') && (text.includes('open') || text.includes('read') || text.includes('write')),
+      'Response must explain file operations (open, read, write)'
+    )
+    assert(
+      text.includes('```python') && (text.includes('open(') || text.includes('with open')),
+      'Response must contain a Python code snippet with open() / with open'
+    )
+    assert(!text.includes('for loop and while loop'), 'Must NOT return loop comparison')
+    assert(!text.includes('```c'), 'Snippet must NOT be rendered with C syntax formatting')
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
+  // Target Q5: What is the difference between a for loop and a while loop?
+  await runTest('Task 6.5: What is the difference between a for loop and a while loop?', async () => {
+    const res = await processAssistantMessage('What is the difference between a for loop and a while loop?')
+    const text = res.spokenText.toLowerCase()
+
+    assert(text.includes('for loop') && text.includes('while loop'), 'Response must compare both loops')
+    assert(
+      text.includes('definite') || text.includes('indefinite') || text.includes('known') || text.includes('condition'),
+      'Response must explain definite vs indefinite iteration'
+    )
+    assert(
+      !text.startsWith('an algorithm is a finite'),
+      'Must NOT return generic algorithm definition'
+    )
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
+  // Target Q6: Explain inheritance in Python with an example.
+  await runTest('Task 6.6: Explain inheritance in Python with an example.', async () => {
+    const syllabusMatches = searchSyllabus('Explain inheritance in Python with an example.')
+    assert.strictEqual(
+      syllabusMatches.length,
+      0,
+      'Inheritance in Python must NOT match Python loops syllabus material'
+    )
+
+    const res = await processAssistantMessage('Explain inheritance in Python with an example.')
+    const text = res.spokenText.toLowerCase()
+
+    assert(text.includes('inheritance'), 'Response must explain inheritance')
+    assert(
+      text.includes('parent') || text.includes('child') || text.includes('class'),
+      'Response must explain OOP class relationship'
+    )
+    assert(
+      text.includes('```python') && (text.includes('class animal') || text.includes('class dog') || text.includes('super()')),
+      'Response must contain Python code illustrating inheritance with classes and super()'
+    )
+    assert(!text.includes('```c'), 'Snippet must NOT be rendered with C syntax formatting')
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
+  // Target Q7: Explain the previous answer in simpler language.
+  await runTest('Task 6.7: Explain the previous answer in simpler language.', async () => {
+    const previousTurn = await processAssistantMessage('Explain inheritance in Python with an example.')
+
+    const history = [
+      { role: 'user' as const, text: 'Explain inheritance in Python with an example.' },
+      { role: 'assistant' as const, text: previousTurn.spokenText },
+    ]
+
+    const resolved = resolveConversationContext('Explain the previous answer in simpler language.', history)
+    assert(
+      resolved.resolvedQuery.toLowerCase().includes('inheritance'),
+      `Context resolution must extract "inheritance" from previous turn (got "${resolved.resolvedQuery}")`
+    )
+
+    const res = await processAssistantMessage('Explain the previous answer in simpler language.', { history })
+    const text = res.spokenText.toLowerCase()
+
+    assert(
+      text.includes('inheritance') || text.includes('parent') || text.includes('blueprint') || text.includes('traits'),
+      'Response must explain inheritance in simpler language'
+    )
+    assert(
+      !text.includes('question answering') && !text.includes('qa system'),
+      'Must NOT fall back to Wikipedia Question Answering'
+    )
+    assert.strictEqual(res.action, undefined, 'Must not trigger navigation')
+  })
+
   console.log('\n======================================================')
   const total = results.length
   const passed = results.filter((r) => r.passed).length

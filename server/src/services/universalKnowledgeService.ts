@@ -6,6 +6,7 @@ export interface UniversalAnswer {
   summary: string
   spokenText: string
   codeSnippet?: string
+  codeLanguage?: string
   source: 'bca-curated' | 'wikipedia' | 'local-encyclopedia'
 }
 
@@ -16,6 +17,7 @@ export interface BcaConcept {
   spokenText: string
   summary: string
   codeSnippet?: string
+  codeLanguage?: string
 }
 
 export const BCA_CURRICULUM_KNOWLEDGE: BcaConcept[] = [
@@ -88,6 +90,54 @@ int main() {
       'A for loop executes in four clear sequential steps. Step 1 is Initialization, where the loop counter variable is created and assigned a starting value. This happens only once. Step 2 is Condition Evaluation, where the loop condition is tested. If true, execution continues; if false, the loop terminates immediately. Step 3 is Body Execution, where the statements inside the loop block are carried out. Step 4 is Increment or Update, where the counter variable is updated, and control jumps back to Step 2 to test the condition again.',
     summary:
       'How a For Loop Works Step by Step:\n1. Step 1: Initialization — The loop control variable is initialized (e.g. int i = 0). Executes exactly once at the beginning.\n2. Step 2: Condition Evaluation — The loop test expression (e.g. i < 10) is checked. If true, control enters the loop body. If false, the loop ends.\n3. Step 3: Body Execution — The code statements inside the loop block are executed.\n4. Step 4: Iteration / Update — The loop counter is modified (e.g. i++). Control immediately returns to Step 2 to re-evaluate the condition.',
+  },
+  {
+    id: 'python-inheritance-example',
+    title: 'Inheritance in Python with Code Example',
+    matchPatterns: [
+      /\binheritance\b.*\bpython\b/i,
+      /\bpython\b.*\binheritance\b/i,
+    ],
+    codeLanguage: 'python',
+    codeSnippet: `# Parent / Base class
+class Animal:
+    def __init__(self, name):
+        self.name = name
+
+    def speak(self):
+        return f"{self.name} makes a sound."
+
+# Child / Derived class inheriting from Animal
+class Dog(Animal):
+    def __init__(self, name, breed):
+        # Call parent constructor
+        super().__init__(name)
+        self.breed = breed
+
+    # Method overriding
+    def speak(self):
+        return f"{self.name} the {self.breed} barks!"
+
+# Create an instance of the child class
+my_dog = Dog("Buddy", "Golden Retriever")
+print(my_dog.speak())  # Output: Buddy the Golden Retriever barks!`,
+    spokenText:
+      'In Python, inheritance allows a child class to inherit attributes and methods from a parent class, enabling code reuse. In our example, Animal is the parent class with a constructor init that accepts a name, and a speak method. Dog is the child class, defined as class Dog parentheses Animal, indicating it inherits from Animal. In Dog dot init, we use super dot init to call the parent constructor to set the name, and add a breed attribute. Dog overrides the speak method to return a barking message. When we instantiate Dog with Buddy and Golden Retriever, Buddy has access to both inherited and specialized properties.',
+    summary:
+      'Inheritance in Python:\n\nSyntax: `class DerivedClass(BaseClass):`\n- `super().__init__()`: Calls the base class constructor.\n- Method Overriding: Child class replaces a parent method with specialized logic.\n\n```python\nclass Animal:\n    def __init__(self, name):\n        self.name = name\n    def speak(self):\n        return f"{self.name} makes a sound."\n\nclass Dog(Animal):\n    def __init__(self, name, breed):\n        super().__init__(name)\n        self.breed = breed\n    def speak(self):\n        return f"{self.name} the {self.breed} barks!"\n```',
+  },
+  {
+    id: 'inheritance-simplified',
+    title: 'Inheritance Explained in Simpler Language',
+    matchPatterns: [
+      /\b(simpler\s+language|simpler\s+terms|simple\s+words|simplify)\b.*\b(inheritance|previous\s+answer|earlier\s+answer|concept)\b/i,
+      /\bexplain\s+(the\s+)?previous\s+answer\s+in\s+simpler\s+language\b/i,
+      /\bexplain\s+(that\s+)?more\s+simply\b/i,
+    ],
+    spokenText:
+      'To put it simply, think of inheritance just like children inheriting physical traits from their parents, like eye color or height. In programming, instead of writing the same code over and over again for every new item, you create a general parent blueprint, like Animal, with basic features like a name and ability to speak. Then, any specific child blueprint, like Dog, automatically gets all of those features for free and only adds what is special, like barking and having a breed. This saves time and keeps code clean.',
+    summary:
+      'Inheritance in Simpler Language:\n\nThink of inheritance like a family recipe or DNA:\n1. Parent Class: Has general ingredients that all recipes share.\n2. Child Class: Inherits the whole base recipe automatically and just adds its own special topping.\nWhy use it? You write the common code once, and all derived objects can use it immediately without rewriting.',
   },
   {
     id: 'inheritance-real-life-example',
@@ -206,6 +256,82 @@ int main() {
     summary:
       '1. Memory: A process has separate memory space; threads share the memory of their parent process.\n2. Overhead: Creating and switching processes is heavyweight; thread operations are lightweight.\n3. Communication: Processes communicate via Inter-Process Communication (IPC); threads communicate directly via shared memory.\n4. Independence: Processes are isolated; if one thread terminates improperly, it can crash other threads.',
   },
+  {
+    id: 'software-development-life-cycle',
+    title: 'Software Development Life Cycle (SDLC)',
+    matchPatterns: [
+      /\b(what\s+is\s+sdlc|sdlc\b|software\s+development\s+life\s*cycle)\b/i,
+      /\bphases\s+of\s+sdlc\b/i,
+    ],
+    spokenText:
+      'The Software Development Life Cycle, or SDLC, is a structured step-by-step methodology used by software teams to design, develop, test, and maintain high-quality software. The core SDLC phases are: 1. Requirement Analysis, gathering user needs; 2. System Design, defining overall architecture and specifications; 3. Implementation or Coding, writing the actual source code; 4. Testing, identifying and resolving bugs; 5. Deployment, releasing the product to users; and 6. Maintenance, fixing issues and adding enhancements over time.',
+    summary:
+      'Software Development Life Cycle (SDLC) is a systematic process for building software:\n1. Requirement Gathering & Analysis: Define what the software must accomplish.\n2. System Design: Plan architectural blueprints, database schemas, and workflows.\n3. Implementation (Coding): Develop executable code in programming languages.\n4. Testing: Verify functional, performance, and security requirements.\n5. Deployment: Release software into staging and production environments.\n6. Maintenance: Provide ongoing updates, patches, and enhancements.',
+  },
+  {
+    id: 'cloud-deployment-models',
+    title: 'Types of Cloud Deployment Models',
+    matchPatterns: [
+      /\b(types\s+of\s+cloud\s+deployment|cloud\s+deployment\s+models|cloud\s+deployment\s+types|what\s+are\s+the\s+types\s+of\s+cloud\s+deployment)\b/i,
+      /\b4\s+deployment\s+models\b/i,
+    ],
+    spokenText:
+      'According to cloud computing standards like NIST, there are four primary cloud deployment models: 1. Public Cloud: Resources are owned and operated by a third-party cloud provider and delivered over the internet to multiple organizations. Examples include AWS, Google Cloud, and Microsoft Azure. 2. Private Cloud: Cloud infrastructure provisioned for exclusive use by a single organization, either on-premises or hosted by a provider, offering maximum security and control. 3. Hybrid Cloud: Combines public and private clouds, enabling workloads and data to move seamlessly between them. 4. Community Cloud: Shared infrastructure dedicated to a specific community of organizations with shared concerns, such as compliance or security policies.',
+    summary:
+      'Cloud Deployment Models (NIST Standard):\n1. Public Cloud: Shared multi-tenant environment hosted by third parties (e.g. AWS, Azure, GCP).\n2. Private Cloud: Dedicated single-tenant infrastructure exclusively for one organization.\n3. Hybrid Cloud: Integrates public and private clouds for optimal flexibility and workload balance.\n4. Community Cloud: Shared among organizations with common missions, regulations, or security requirements.',
+  },
+  {
+    id: 'private-cloud-deployment',
+    title: 'Private Cloud Deployment',
+    matchPatterns: [
+      /\b(what\s+is\s+private\s+cloud(\s+deployment)?|explain\s+private\s+cloud(\s+deployment)?|private\s+cloud\s+deployment)\b/i,
+      /\bprivate\s+cloud\b/i,
+    ],
+    spokenText:
+      'Private cloud deployment is a cloud computing environment dedicated solely to a single organization. Unlike a public cloud where computing resources are shared among multiple tenants, a private cloud is completely isolated. It can be hosted internally in an organization’s own data center or managed externally by a third-party cloud provider. Private clouds provide maximum data control, heightened security, and full regulatory compliance, making them essential for financial institutions, government agencies, and healthcare providers.',
+    summary:
+      'Private Cloud Deployment:\n- Definition: Cloud infrastructure provisioned for exclusive use by a single entity.\n- Tenancy: Dedicated single-tenant architecture (no shared hardware).\n- Hosting: Can be deployed on-premises (private data center) or hosted off-site by a cloud vendor.\n- Advantages: Stringent data sovereignty, high customization, dedicated network security, and compliance with standards like HIPAA or PCI-DSS.\n- Primary Users: Banks, defense contractors, and healthcare organizations.',
+  },
+  {
+    id: 'python-file-handling',
+    title: 'File Handling in Python Using Code',
+    matchPatterns: [
+      /\b(file\s+handling|handle\s+files?|read\s+and\s+write\s+files?|working\s+with\s+files?)\b.*\bpython\b/i,
+      /\bpython\b.*\b(file\s+handling|file\s+operations?|reading\s+files?|writing\s+files?)\b/i,
+      /\bexplain\s+file\s+handling\s+in\s+python\b/i,
+    ],
+    codeLanguage: 'python',
+    codeSnippet: `# 1. Writing to a file using the 'with' statement
+with open("sample.txt", "w") as file:
+    file.write("Hello, LearnWell!\\n")
+    file.write("File handling in Python is easy.\\n")
+
+# 2. Reading from the file
+with open("sample.txt", "r") as file:
+    content = file.read()
+    print("File Content:\\n", content)
+
+# 3. Appending new data without overwriting
+with open("sample.txt", "a") as file:
+    file.write("Appended line.\\n")`,
+    spokenText:
+      'In Python, file handling allows you to create, read, update, and delete files on disk. The standard, best-practice way to handle files is using the with open statement, which automatically closes the file when operations are done, even if errors occur. The main file modes are: r for reading, w for writing or overwriting, and a for appending. In our code, we open sample dot txt with mode w to write two lines. Then we open it in mode r to read and print the full content with file dot read. Finally, we open it in mode a to append a new line to the end of the file.',
+    summary:
+      'File Handling in Python:\n\n1. Best Practice: Always use \`with open(...) as f:\` to guarantee proper resource cleanup and automatic file closing.\n2. Access Modes:\n   - "r": Read mode (default).\n   - "w": Write mode (creates or truncates file).\n   - "a": Append mode (adds content to file end).\n\n\`\`\`python\nwith open("sample.txt", "w") as file:\n    file.write("Hello, LearnWell!\\n")\n\nwith open("sample.txt", "r") as file:\n    print(file.read())\n\`\`\`',
+  },
+  {
+    id: 'for-loop-vs-while-loop',
+    title: 'Difference Between For Loop and While Loop',
+    matchPatterns: [
+      /\b(difference|compare|versus|vs)\b.*\b(for\s+loop)\b.*\b(while\s+loop)\b/i,
+      /\b(difference|compare|versus|vs)\b.*\b(while\s+loop)\b.*\b(for\s+loop)\b/i,
+      /\b(for\s+loop\s+and\s+while\s+loop|while\s+loop\s+and\s+for\s+loop)\b.*\b(difference|compare)\b/i,
+    ],
+    spokenText:
+      'The key difference between a for loop and a while loop is definite versus indefinite iteration. A for loop is used when the number of iterations or the collection to traverse is known in advance, such as iterating over a fixed range of numbers or items in a list. A while loop is used when the number of iterations is not known in advance and the loop must continue repeating as long as a Boolean condition evaluates to true. In a for loop, initialization, condition checking, and stepping are cleanly structured in the loop declaration. In a while loop, you initialize variables before the loop and must explicitly update the loop condition inside the body to avoid an infinite loop.',
+    summary:
+      'Difference Between For Loop and While Loop:\n\n1. Iteration Type:\n   - For Loop: Definite iteration (known number of repetitions or fixed collection).\n   - While Loop: Indefinite iteration (repeats until condition evaluates to false).\n2. Loop Variable:\n   - For Loop: Automatically managed via iteration constructs or ranges.\n   - While Loop: Manually initialized before the loop and updated inside the body.\n3. Risk of Infinite Loop:\n   - For Loop: Very low since sequence length is finite.\n   - While Loop: High if loop condition is never updated to false.\n4. Example Use Cases:\n   - For Loop: Processing every item in a list or array.\n   - While Loop: Polling user input or waiting for a network response.',
+  },
 ]
 
 // Built-in high-frequency universal facts
@@ -271,6 +397,7 @@ export function matchBcaCurriculum(query: string): UniversalAnswer | null {
           summary: concept.summary,
           spokenText: concept.spokenText,
           codeSnippet: concept.codeSnippet,
+          codeLanguage: concept.codeLanguage,
           source: 'bca-curated',
         }
       }

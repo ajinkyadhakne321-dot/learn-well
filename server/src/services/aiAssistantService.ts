@@ -78,10 +78,11 @@ export function resolveConversationContext(
     return { resolvedQuery: trimmed }
   }
 
-  // Check if current query contains referential pronouns or phrases
+  // Check if current query contains referential pronouns or follow-up phrases
   const hasPronounRef =
     /\b(it|this|that|its|these|those)\b/i.test(trimmed) ||
-    /\b(real\s*life\s*example|example\s+of\s+it|practical\s+example|elaborate|why\s+is\s+that|how\s+does\s+it\s+work|show\s+code\s+for\s+that)\b/i.test(trimmed)
+    /\b(real\s*life\s*example|example\s+of\s+it|practical\s+example|elaborate|why\s+is\s+that|how\s+does\s+it\s+work|show\s+code\s+for\s+that)\b/i.test(trimmed) ||
+    /\b(previous(\s+answer)?|last(\s+answer)?|above|earlier|simpler(\s+language|\s+terms|\s+words)?|simplify|can\s+you\s+simplify|explain\s+again|more\s+simply)\b/i.test(trimmed)
 
   if (!hasPronounRef) {
     return { resolvedQuery: trimmed }
@@ -102,9 +103,10 @@ export function resolveConversationContext(
     const candidate = text
       .replace(/^(who is|who was|what is|what are|explain|describe|define|tell me about|how does|why does)\s+/i, '')
       .replace(/[?.!;,]+$/g, '')
+      .replace(/\b(with\s+(an?\s+)?example|using\s+code|step\s+by\s+step|in\s+simple\s+language)\b/gi, '')
       .trim()
 
-    if (candidate.length > 2 && !/\b(it|this|that)\b/i.test(candidate)) {
+    if (candidate.length > 2 && !/\b(it|this|that|previous\s+answer)\b/i.test(candidate)) {
       extractedTopic = candidate
       break
     }
@@ -118,19 +120,32 @@ export function resolveConversationContext(
       .filter((h) => (h.role === 'assistant' || h.role === 'model') && h.text.trim().length > 0)
 
     for (const turn of recentAssistantTurns) {
-      if (turn.text.toLowerCase().includes('inheritance')) {
-        extractedTopic = 'inheritance in OOP'
+      const lower = turn.text.toLowerCase()
+      if (lower.includes('inheritance')) {
+        extractedTopic = 'inheritance in Python'
         break
-      } else if (turn.text.toLowerCase().includes('array') && turn.text.toLowerCase().includes('linked list')) {
+      } else if (lower.includes('file handling') || lower.includes('with open')) {
+        extractedTopic = 'file handling in Python'
+        break
+      } else if (lower.includes('cloud deployment') || lower.includes('private cloud')) {
+        extractedTopic = 'cloud deployment models'
+        break
+      } else if (lower.includes('sdlc') || lower.includes('software development life cycle')) {
+        extractedTopic = 'SDLC'
+        break
+      } else if (lower.includes('for loop') && lower.includes('while loop')) {
+        extractedTopic = 'for loops and while loops'
+        break
+      } else if (lower.includes('array') && lower.includes('linked list')) {
         extractedTopic = 'arrays and linked lists'
         break
-      } else if (turn.text.toLowerCase().includes('binary search')) {
+      } else if (lower.includes('binary search')) {
         extractedTopic = 'binary search'
         break
-      } else if (turn.text.toLowerCase().includes('for loop')) {
+      } else if (lower.includes('for loop')) {
         extractedTopic = 'for loops'
         break
-      } else if (turn.text.toLowerCase().includes('osi model')) {
+      } else if (lower.includes('osi model')) {
         extractedTopic = 'the OSI model'
         break
       }
@@ -138,16 +153,23 @@ export function resolveConversationContext(
   }
 
   if (extractedTopic) {
-    // Replace pronouns with the explicit topic
-    const resolved = trimmed
+    let resolved = trimmed
       .replace(/\bof\s+it\b/gi, `of ${extractedTopic}`)
       .replace(/\bof\s+that\b/gi, `of ${extractedTopic}`)
       .replace(/\bof\s+this\b/gi, `of ${extractedTopic}`)
       .replace(/\bhow\s+does\s+it\s+work\b/gi, `how does ${extractedTopic} work`)
       .replace(/\bwhy\s+is\s+it\b/gi, `why is ${extractedTopic}`)
+      .replace(/\b(the\s+)?previous\s+answer\b/gi, extractedTopic)
+      .replace(/\b(the\s+)?last\s+answer\b/gi, extractedTopic)
+
+    if (/\b(simpler\s+language|simpler\s+terms|simple\s+words|simplify)\b/i.test(trimmed)) {
+      resolved = `Explain ${extractedTopic} in simpler language`
+    } else if (resolved === trimmed) {
+      resolved = `${trimmed} (${extractedTopic})`
+    }
 
     return {
-      resolvedQuery: resolved !== trimmed ? resolved : `${trimmed} (${extractedTopic})`,
+      resolvedQuery: resolved,
       detectedTopic: extractedTopic,
     }
   }
@@ -330,8 +352,9 @@ export async function generateValidatedBcaResponse(
   const bcaCurriculum = matchBcaCurriculum(resolvedQuery) || matchBcaCurriculum(originalQuery)
   if (bcaCurriculum) {
     let combinedText = bcaCurriculum.spokenText
-    if (bcaCurriculum.codeSnippet && !combinedText.includes('#include') && !combinedText.includes('```')) {
-      combinedText = `${bcaCurriculum.spokenText}\n\n\`\`\`c\n${bcaCurriculum.codeSnippet}\n\`\`\``
+    if (bcaCurriculum.codeSnippet && !combinedText.includes('```')) {
+      const lang = bcaCurriculum.codeLanguage || (bcaCurriculum.codeSnippet.includes('#include') ? 'c' : 'python')
+      combinedText = `${bcaCurriculum.spokenText}\n\n\`\`\`${lang}\n${bcaCurriculum.codeSnippet}\n\`\`\``
     }
 
     return {
@@ -445,15 +468,81 @@ export async function processAssistantMessage(
     }
   }
 
+interface DiagnosticRecord {
+  requestId: string
+  finalUserQuestion: string
+  originalQuestion?: string
+  modelIdentifier: string
+  retrievedDocuments: Array<{
+    title: string
+    materialId: string
+    page: number
+    score: number
+    excerpt: string
+  }>
+  conversationHistoryCount: number
+  conversationHistorySent: Array<{ role: string; textPreview: string }>
+  geminiResponse?: {
+    spokenTextPreview: string
+    hasAction: boolean
+  }
+  finalResponse: {
+    spokenTextPreview: string
+    provider: 'gemini' | 'offline-agent'
+  }
+  fallbackPath?: string
+  error?: string
+}
+
+function logAssistantDiagnostics(diag: DiagnosticRecord) {
+  if (env.nodeEnv !== 'development') return
+
+  console.info(`\n========== 🔍 [LearnWell AI Diagnostics: ${diag.requestId}] ==========`)
+  console.info(`• Exact Final User Question: "${diag.finalUserQuestion}"${diag.originalQuestion && diag.originalQuestion !== diag.finalUserQuestion ? ` (Original: "${diag.originalQuestion}")` : ''}`)
+  console.info(`• Model Identifier: ${diag.modelIdentifier}`)
+  if (diag.retrievedDocuments.length > 0) {
+    console.info(`• Retrieved Study Materials (${diag.retrievedDocuments.length}):`)
+    for (const doc of diag.retrievedDocuments) {
+      console.info(`    - [${doc.materialId}] "${doc.title}" (Page ${doc.page}, Score: ${doc.score})`)
+      console.info(`      Excerpt: "${doc.excerpt.slice(0, 150)}..."`)
+    }
+  } else {
+    console.info(`• Retrieved Study Materials: None (unrelated study materials rejected)`)
+  }
+  console.info(`• Conversation History Sent: ${diag.conversationHistoryCount} turn(s)`)
+  if (diag.conversationHistorySent.length > 0) {
+    for (const h of diag.conversationHistorySent) {
+      console.info(`    - [${h.role}]: "${h.textPreview.slice(0, 80)}..."`)
+    }
+  }
+  if (diag.geminiResponse) {
+    console.info(`• Gemini API Response: "${diag.geminiResponse.spokenTextPreview.slice(0, 160)}..." (Action: ${diag.geminiResponse.hasAction ? 'present' : 'none'})`)
+  }
+  if (diag.error) {
+    console.warn(`• Diagnostic Error: ${diag.error}`)
+  }
+  if (diag.fallbackPath) {
+    console.info(`• Fallback Path Activated: ${diag.fallbackPath}`)
+  }
+  console.info(`• Final Response Provider: ${diag.finalResponse.provider}`)
+  console.info(`• Final Response Text: "${diag.finalResponse.spokenTextPreview.slice(0, 160)}..."`)
+  console.info(`=========================================================================\n`)
+}
+
   // Search syllabus knowledge base using the resolved query with strict relevance filtering
   const syllabusMatches = searchSyllabus(resolvedQuery, context.currentPath, 3)
+
+  const modelId = 'gemini-1.5-flash'
+  let geminiCandidate: AssistantResponse | null = null
+  let geminiError: string | undefined
+  let fallbackReason: string | undefined
 
   // 4. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
     try {
       const genAI = new GoogleGenerativeAI(env.geminiApiKey)
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: modelId,
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.2,
@@ -461,10 +550,11 @@ export async function processAssistantMessage(
         systemInstruction: SYSTEM_PROMPT,
       })
 
+      // ONLY include syllabus context if relevant matches exist
       let syllabusContextText = ''
       if (syllabusMatches.length > 0) {
         syllabusContextText =
-          `\nOfficial Course Notes Excerpts (Use ONLY if directly relevant to the question):\n` +
+          `\nOfficial Course Notes Excerpts (Relevant Study Context):\n` +
           syllabusMatches
             .map((m) => `[Doc: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`)
             .join('\n\n') +
@@ -492,41 +582,71 @@ Student Query: "${resolvedQuery}"`
       const result = await model.generateContent(prompt)
       const text = result.response.text()
 
-      let candidateResponse: AssistantResponse | null = null
       try {
         const parsed = JSON.parse(text)
         if (parsed.spokenText) {
-          candidateResponse = {
+          geminiCandidate = {
             spokenText: parsed.spokenText,
             action: parsed.action || undefined,
             provider: 'gemini',
           }
         }
       } catch {
-        candidateResponse = {
+        geminiCandidate = {
           spokenText: text.replace(/[*#_`]/g, '').trim(),
           provider: 'gemini',
         }
       }
 
-      if (candidateResponse) {
+      if (geminiCandidate) {
         // Enforce action separation: Never allow NAVIGATE for academic questions
-        if (candidateResponse.action?.type === 'NAVIGATE' && !isExplicitNavigationQuery(query)) {
-          delete candidateResponse.action
+        if (geminiCandidate.action?.type === 'NAVIGATE' && !isExplicitNavigationQuery(query)) {
+          delete geminiCandidate.action
         }
 
         // Validate response quality
-        const validation = validateAssistantResponse(query, resolvedQuery, candidateResponse)
+        const validation = validateAssistantResponse(query, resolvedQuery, geminiCandidate)
         if (validation.valid) {
           console.info(`[${requestId}] Gemini response validated successfully.`)
-          return candidateResponse
+          logAssistantDiagnostics({
+            requestId,
+            finalUserQuestion: resolvedQuery,
+            originalQuestion: query !== resolvedQuery ? query : undefined,
+            modelIdentifier: modelId,
+            retrievedDocuments: syllabusMatches.map((m) => ({
+              title: m.title,
+              materialId: m.materialId,
+              page: m.page,
+              score: m.score,
+              excerpt: m.snippet,
+            })),
+            conversationHistoryCount: context.history?.length || 0,
+            conversationHistorySent: (context.history || []).slice(-6).map((h) => ({
+              role: h.role,
+              textPreview: h.text,
+            })),
+            geminiResponse: {
+              spokenTextPreview: geminiCandidate.spokenText,
+              hasAction: Boolean(geminiCandidate.action),
+            },
+            finalResponse: {
+              spokenTextPreview: geminiCandidate.spokenText,
+              provider: 'gemini',
+            },
+          })
+          return geminiCandidate
         } else {
+          fallbackReason = `Gemini response failed validation (${validation.reason})`
           console.warn(`[${requestId}] Gemini response failed validation (${validation.reason}), using verified academic engine fallback.`)
         }
       }
     } catch (error) {
+      geminiError = error instanceof Error ? error.message : String(error)
+      fallbackReason = `Gemini API call failed or timed out: ${geminiError}`
       console.warn(`[${requestId}] Gemini API call failed or timed out:`, error)
     }
+  } else {
+    fallbackReason = 'No GEMINI_API_KEY configured (using built-in curriculum NLU engine)'
   }
 
   // 5. Intelligent BCA Academic Engine & Accessibility NLU Fallback
@@ -534,22 +654,52 @@ Student Query: "${resolvedQuery}"`
 
   // Validate the offline response
   const offlineValidation = validateAssistantResponse(query, resolvedQuery, response)
+  let finalResponse = response
   if (!offlineValidation.valid) {
     console.warn(`[${requestId}] Offline response failed validation (${offlineValidation.reason}), regenerating with curriculum engine.`)
     const guaranteedAnswer = await generateValidatedBcaResponse(resolvedQuery, query)
     if (guaranteedAnswer) {
-      return guaranteedAnswer
+      finalResponse = guaranteedAnswer
     }
   }
 
   // Ensure no unwanted note saving question is attached
-  if (response.spokenText) {
-    response.spokenText = response.spokenText
+  if (finalResponse.spokenText) {
+    finalResponse.spokenText = finalResponse.spokenText
       .replace(/\s*Would you like me to save this explanation to your study notes\?\s*/gi, ' ')
       .trim()
   }
 
-  return response
+  logAssistantDiagnostics({
+    requestId,
+    finalUserQuestion: resolvedQuery,
+    originalQuestion: query !== resolvedQuery ? query : undefined,
+    modelIdentifier: env.geminiApiKey ? modelId : `${modelId} (offline-fallback)`,
+    retrievedDocuments: syllabusMatches.map((m) => ({
+      title: m.title,
+      materialId: m.materialId,
+      page: m.page,
+      score: m.score,
+      excerpt: m.snippet,
+    })),
+    conversationHistoryCount: context.history?.length || 0,
+    conversationHistorySent: (context.history || []).slice(-6).map((h) => ({
+      role: h.role,
+      textPreview: h.text,
+    })),
+    geminiResponse: geminiCandidate ? {
+      spokenTextPreview: geminiCandidate.spokenText,
+      hasAction: Boolean(geminiCandidate.action),
+    } : undefined,
+    finalResponse: {
+      spokenTextPreview: finalResponse.spokenText,
+      provider: finalResponse.provider,
+    },
+    fallbackPath: fallbackReason,
+    error: geminiError,
+  })
+
+  return finalResponse
 }
 
 export function isExplicitCloseQuery(query: string): boolean {
@@ -768,8 +918,9 @@ async function processOfflineAccessibilityIntent(
   const bcaCurriculum = matchBcaCurriculum(resolvedQuery) || matchBcaCurriculum(rawQuery)
   if (bcaCurriculum) {
     let combined = bcaCurriculum.spokenText
-    if (bcaCurriculum.codeSnippet) {
-      combined = `${bcaCurriculum.spokenText}\n\n\`\`\`c\n${bcaCurriculum.codeSnippet}\n\`\`\``
+    if (bcaCurriculum.codeSnippet && !combined.includes('```')) {
+      const lang = bcaCurriculum.codeLanguage || (bcaCurriculum.codeSnippet.includes('#include') ? 'c' : 'python')
+      combined = `${bcaCurriculum.spokenText}\n\n\`\`\`${lang}\n${bcaCurriculum.codeSnippet}\n\`\`\``
     }
     return {
       spokenText: combined,
