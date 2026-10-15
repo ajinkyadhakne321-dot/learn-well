@@ -531,118 +531,132 @@ function logAssistantDiagnostics(diag: DiagnosticRecord) {
   // Search syllabus knowledge base using the resolved query with strict relevance filtering
   const syllabusMatches = searchSyllabus(resolvedQuery, context.currentPath, 3)
 
-  const modelId = 'gemini-1.5-flash'
+  const GEMINI_CANDIDATE_MODELS = [
+    'gemini-3.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+  ]
+  let activeModelId = GEMINI_CANDIDATE_MODELS[0]
   let geminiCandidate: AssistantResponse | null = null
   let geminiError: string | undefined
   let fallbackReason: string | undefined
 
   // 4. Try Gemini Generative AI if API key is configured
   if (env.geminiApiKey) {
-    try {
-      const genAI = new GoogleGenerativeAI(env.geminiApiKey)
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-        systemInstruction: SYSTEM_PROMPT,
-      })
+    const genAI = new GoogleGenerativeAI(env.geminiApiKey)
 
-      // ONLY include syllabus context if relevant matches exist
-      let syllabusContextText = ''
-      if (syllabusMatches.length > 0) {
-        syllabusContextText =
-          `\nOfficial Course Notes Excerpts (Relevant Study Context):\n` +
-          syllabusMatches
-            .map((m) => `[Doc: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`)
-            .join('\n\n') +
-          `\nNote: If the student question is general and not specifically asking about course syllabus notes, answer comprehensively using your broad intelligence and knowledge.`
-      }
+    // ONLY include syllabus context if relevant matches exist
+    let syllabusContextText = ''
+    if (syllabusMatches.length > 0) {
+      syllabusContextText =
+        `\nOfficial Course Notes Excerpts (Relevant Study Context):\n` +
+        syllabusMatches
+          .map((m) => `[Doc: ${m.title} | Subject: ${m.subject} | Page: ${m.page}]\nContent: "${m.snippet}"`)
+          .join('\n\n') +
+        `\nNote: If the student question is general and not specifically asking about course syllabus notes, answer comprehensively using your broad intelligence and knowledge.`
+    }
 
-      let historyContext = ''
-      if (context.history && context.history.length > 0) {
-        historyContext =
-          `\nRecent Conversation History:\n` +
-          context.history
-            .slice(-6)
-            .map((h) => `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.text}"`)
-            .join('\n') +
-          '\n'
-      }
+    let historyContext = ''
+    if (context.history && context.history.length > 0) {
+      historyContext =
+        `\nRecent Conversation History:\n` +
+        context.history
+          .slice(-6)
+          .map((h) => `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.text}"`)
+          .join('\n') +
+        '\n'
+    }
 
-      const prompt = `Student Information:
+    const prompt = `Student Information:
 - Current Page: ${context.pageTitle || 'Dashboard'} (${context.currentPath || '/'})
 - Student Name: ${context.studentName || 'Student'}
 ${syllabusContextText}
 ${historyContext}
 Student Query: "${resolvedQuery}"`
 
-      const result = await model.generateContent(prompt)
-      const text = result.response.text()
-
+    for (const candidateModel of GEMINI_CANDIDATE_MODELS) {
       try {
-        const parsed = JSON.parse(text)
-        if (parsed.spokenText) {
+        const model = genAI.getGenerativeModel({
+          model: candidateModel,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+          },
+          systemInstruction: SYSTEM_PROMPT,
+        })
+
+        const result = await model.generateContent(prompt)
+        const text = result.response.text()
+        activeModelId = candidateModel
+
+        try {
+          const parsed = JSON.parse(text)
+          if (parsed.spokenText) {
+            geminiCandidate = {
+              spokenText: parsed.spokenText,
+              action: parsed.action || undefined,
+              provider: 'gemini',
+            }
+          }
+        } catch {
           geminiCandidate = {
-            spokenText: parsed.spokenText,
-            action: parsed.action || undefined,
+            spokenText: text.replace(/[*#_`]/g, '').trim(),
             provider: 'gemini',
           }
         }
-      } catch {
-        geminiCandidate = {
-          spokenText: text.replace(/[*#_`]/g, '').trim(),
-          provider: 'gemini',
-        }
-      }
 
-      if (geminiCandidate) {
-        // Enforce action separation: Never allow NAVIGATE for academic questions
-        if (geminiCandidate.action?.type === 'NAVIGATE' && !isExplicitNavigationQuery(query)) {
-          delete geminiCandidate.action
-        }
+        if (geminiCandidate) {
+          // Enforce action separation: Never allow NAVIGATE for academic questions
+          if (geminiCandidate.action?.type === 'NAVIGATE' && !isExplicitNavigationQuery(query)) {
+            delete geminiCandidate.action
+          }
 
-        // Validate response quality
-        const validation = validateAssistantResponse(query, resolvedQuery, geminiCandidate)
-        if (validation.valid) {
-          console.info(`[${requestId}] Gemini response validated successfully.`)
-          logAssistantDiagnostics({
-            requestId,
-            finalUserQuestion: resolvedQuery,
-            originalQuestion: query !== resolvedQuery ? query : undefined,
-            modelIdentifier: modelId,
-            retrievedDocuments: syllabusMatches.map((m) => ({
-              title: m.title,
-              materialId: m.materialId,
-              page: m.page,
-              score: m.score,
-              excerpt: m.snippet,
-            })),
-            conversationHistoryCount: context.history?.length || 0,
-            conversationHistorySent: (context.history || []).slice(-6).map((h) => ({
-              role: h.role,
-              textPreview: h.text,
-            })),
-            geminiResponse: {
-              spokenTextPreview: geminiCandidate.spokenText,
-              hasAction: Boolean(geminiCandidate.action),
-            },
-            finalResponse: {
-              spokenTextPreview: geminiCandidate.spokenText,
-              provider: 'gemini',
-            },
-          })
-          return geminiCandidate
-        } else {
-          fallbackReason = `Gemini response failed validation (${validation.reason})`
-          console.warn(`[${requestId}] Gemini response failed validation (${validation.reason}), using verified academic engine fallback.`)
+          // Validate response quality
+          const validation = validateAssistantResponse(query, resolvedQuery, geminiCandidate)
+          if (validation.valid) {
+            console.info(`[${requestId}] Gemini (${candidateModel}) response validated successfully.`)
+            logAssistantDiagnostics({
+              requestId,
+              finalUserQuestion: resolvedQuery,
+              originalQuestion: query !== resolvedQuery ? query : undefined,
+              modelIdentifier: candidateModel,
+              retrievedDocuments: syllabusMatches.map((m) => ({
+                title: m.title,
+                materialId: m.materialId,
+                page: m.page,
+                score: m.score,
+                excerpt: m.snippet,
+              })),
+              conversationHistoryCount: context.history?.length || 0,
+              conversationHistorySent: (context.history || []).slice(-6).map((h) => ({
+                role: h.role,
+                textPreview: h.text,
+              })),
+              geminiResponse: {
+                spokenTextPreview: geminiCandidate.spokenText,
+                hasAction: Boolean(geminiCandidate.action),
+              },
+              finalResponse: {
+                spokenTextPreview: geminiCandidate.spokenText,
+                provider: 'gemini',
+              },
+            })
+            return geminiCandidate
+          } else {
+            fallbackReason = `Gemini (${candidateModel}) response failed validation (${validation.reason})`
+            console.warn(`[${requestId}] Gemini (${candidateModel}) response failed validation (${validation.reason}), trying next candidate.`)
+          }
         }
+      } catch (error) {
+        geminiError = error instanceof Error ? error.message : String(error)
+        console.warn(`[${requestId}] Gemini candidate ${candidateModel} failed or timed out: ${geminiError}, trying next candidate.`)
       }
-    } catch (error) {
-      geminiError = error instanceof Error ? error.message : String(error)
-      fallbackReason = `Gemini API call failed or timed out: ${geminiError}`
-      console.warn(`[${requestId}] Gemini API call failed or timed out:`, error)
+    }
+
+    if (!geminiCandidate) {
+      fallbackReason = `All Gemini candidate models failed: ${geminiError || 'Unknown error'}`
     }
   } else {
     fallbackReason = 'No GEMINI_API_KEY configured (using built-in curriculum NLU engine)'
@@ -673,7 +687,7 @@ Student Query: "${resolvedQuery}"`
     requestId,
     finalUserQuestion: resolvedQuery,
     originalQuestion: query !== resolvedQuery ? query : undefined,
-    modelIdentifier: env.geminiApiKey ? modelId : `${modelId} (offline-fallback)`,
+    modelIdentifier: env.geminiApiKey ? activeModelId : `${activeModelId} (offline-fallback)`,
     retrievedDocuments: syllabusMatches.map((m) => ({
       title: m.title,
       materialId: m.materialId,
