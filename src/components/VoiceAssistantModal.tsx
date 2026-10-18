@@ -13,6 +13,7 @@ import {
   Layers,
   ArrowRight,
   Headphones,
+  CheckCircle2,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStudentWorkspace } from '../context/StudentWorkspaceState'
@@ -33,12 +34,21 @@ import {
   type ISpeechRecognition,
   type SpeechRate,
 } from '../services/speechService'
-import { sendAssistantMessage, type AssistantAction } from '../services/assistantApi'
+import {
+  sendAssistantMessage,
+  type AssistantAction,
+  type LearningMode,
+  type MathVerification,
+  type SourceReference,
+} from '../services/assistantApi'
 
 export interface ChatMessage {
   id: string
   sender: 'user' | 'assistant'
   text: string
+  mode?: LearningMode
+  math_verification?: MathVerification | null
+  sources?: SourceReference[]
   action?: AssistantAction
   timestamp: string
 }
@@ -53,10 +63,11 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
     {
       id: 'welcome',
       sender: 'assistant',
-      text: 'Hello! I am your LearnWell Voice Assistant. Press the microphone or say "Where am I?", "Go to Notes", or "Take a note". You can also press Alt+A to toggle voice, or Escape to stop audio.',
+      text: 'Hello! I am your LearnWell Voice Assistant. I run completely locally with zero paid API keys required. You can ask academic questions, solve math derivations, write code, or say "Where am I?", "Go to Notes", or "Take a note".',
       timestamp: 'Ready',
     },
   ])
+  const [activeMode, setActiveMode] = useState<LearningMode>('Academic Learning')
   const [inputText, setInputText] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
@@ -242,27 +253,36 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
       const activeHeading = document.querySelector('h1')?.textContent || 'Dashboard'
       const activeSummary = document.querySelector('.feature-description, .page-header p')?.textContent || ''
 
-      const res = await sendAssistantMessage(trimmed, {
-        currentPath: location.pathname,
-        pageTitle: activeHeading,
-        pageSummary: activeSummary,
-        studentName: profile.name,
-        notesCount: notes.length,
-        preferences: {
-          highContrast: preferences.highContrast,
-          textSize: preferences.textSize,
-          underlineLinks: preferences.underlineLinks,
+      const res = await sendAssistantMessage(
+        trimmed,
+        {
+          currentPath: location.pathname,
+          pageTitle: activeHeading,
+          pageSummary: activeSummary,
+          studentName: profile.name,
+          notesCount: notes.length,
+          preferences: {
+            highContrast: preferences.highContrast,
+            textSize: preferences.textSize,
+            underlineLinks: preferences.underlineLinks,
+          },
+          history: messages.slice(-8).map((m) => ({
+            role: m.sender,
+            text: m.text,
+          })),
         },
-        history: messages.slice(-8).map((m) => ({
-          role: m.sender,
-          text: m.text,
-        })),
-      })
+        {
+          mode: activeMode,
+        }
+      )
 
       const botMsg: ChatMessage = {
         id: `msg-${Date.now()}-bot`,
         sender: 'assistant',
-        text: res.spokenText,
+        text: res.response || res.spokenText,
+        mode: res.mode || activeMode,
+        math_verification: res.math_verification,
+        sources: res.sources,
         action: res.action,
         timestamp: 'Just now',
       }
@@ -555,6 +575,34 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
           </div>
         </header>
 
+        {/* Learning Modes Bar */}
+        <div className="assistant-mode-bar" role="tablist" aria-label="Select Learning Mode">
+          {(
+            [
+              'Academic Learning',
+              'Programming & Coding',
+              'Engineering Mathematics',
+              'Exam Preparation',
+              'Practical & Viva',
+              'Project Guidance',
+            ] as LearningMode[]
+          ).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={activeMode === m}
+              className={`assistant-mode-pill ${activeMode === m ? 'active' : ''}`}
+              onClick={() => {
+                setActiveMode(m)
+                announce(`Mode changed to ${m}`)
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
         {/* Conversation Thread */}
         <div className="assistant-conversation" role="log" aria-label="Conversation history">
           {messages.map((msg) => (
@@ -564,6 +612,25 @@ export function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProp
             >
               <div className="bubble-content">
                 {renderMessageContent(msg.text)}
+
+                {/* Math Verification Proof Display */}
+                {msg.math_verification && msg.math_verification.verified && (
+                  <div className="assistant-math-card">
+                    <div className="assistant-math-header">
+                      <CheckCircle2 size={15} />
+                      <span>Math Verified (SymPy)</span>
+                    </div>
+                    <div>Expression: <code>{msg.math_verification.expression}</code></div>
+                    <div className="assistant-math-result">Result: {msg.math_verification.result}</div>
+                    {msg.math_verification.steps && (
+                      <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                        {msg.math_verification.steps.map((st, idx) => (
+                          <li key={idx}>{st}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 {msg.action && (
                   <div className="bubble-action-tag">

@@ -1,0 +1,105 @@
+[
+  {
+    "id": "eval-math-01",
+    "domain": "Engineering Mathematics",
+    "mode": "Engineering Mathematics",
+    "query": "Solve the differential equation dy/dx + 2*y = e^(-x) with initial condition y(0) = 1.",
+    "expected_concepts": ["Integrating factor", "Linear first-order ODE", "Constant of integration", "Step-by-step derivation"],
+    "expected_answer_components": {
+      "integrating_factor": "IF = e^(2x)",
+      "solution": "y(x) = e^(-x) + C*e^(-2x)",
+      "particular_solution": "y(x) = e^(-x)"
+    },
+    "verification_method": "SymPy dsolve check"
+  },
+  {
+    "id": "eval-prog-01",
+    "domain": "Programming and Coding",
+    "mode": "Programming & Coding",
+    "query": "Implement an LRU Cache in Python with O(1) get and put operations using OrderedDict or doubly linked list with hash map.",
+    "expected_concepts": ["Hash map", "Doubly linked list", "Time complexity O(1)", "Space complexity O(capacity)", "Edge case eviction"],
+    "expected_answer_components": {
+      "approach": "Hash map storing key to node pointers with doubly linked list tracking access order",
+      "time_complexity": "O(1) for both get and put",
+      "safety_notice": "Generated code execution warning"
+    }
+  },
+  {
+    "id": "eval-comp-01",
+    "domain": "Computer Engineering",
+    "mode": "Academic Learning",
+    "query": "Explain how virtual memory paging works, including page tables, TLB (Translation Lookaside Buffer), and page fault handling.",
+    "expected_concepts": ["Logical to physical address translation", "Page table structure", "TLB hit and miss latency", "Page fault interrupt and OS disk fetch"],
+    "expected_answer_components": {
+      "diagram_description": "Virtual Address (Page Number + Offset) -> TLB -> Page Table -> Frame Number",
+      "tradeoffs": "Internal fragmentation vs memory protection"
+    }
+  },
+  {
+    "id": "eval-mech-01",
+    "domain": "Mechanical Engineering",
+    "mode": "Academic Learning",
+    "query": "Compare Otto cycle and Diesel cycle based on compression ratio, thermal efficiency for the same peak pressure, and practical applications.",
+    "expected_concepts": ["P-V diagram", "T-s diagram", "Compression ratio limits", "Auto-ignition / knocking limits", "Constant volume vs constant pressure heat addition"],
+    "expected_answer_components": {
+      "efficiency_comparison": "For same peak pressure and heat input: Diesel cycle is more efficient than Otto cycle",
+      "compression_ratio": "Diesel: 14-22; Otto: 7-12"
+    }
+  },
+  {
+    "id": "eval-elec-01",
+    "domain": "Electrical Engineering",
+    "mode": "Academic Learning",
+    "query": "Derive the torque equation of a 3-phase induction motor and explain the condition for maximum torque.",
+    "expected_concepts": ["Rotor resistance R2", "Rotor standstill reactance X2", "Slip s", "Condition for maximum torque: s_max = R2 / X2"],
+    "expected_answer_components": {
+      "torque_formula": "T proportional to (s * E2^2 * R2) / (R2^2 + (s * X2)^2)",
+      "max_torque_condition": "R2 = s * X2",
+      "independence": "Maximum torque is independent of rotor resistance R2"
+    }
+  },
+  {
+    "id": "eval-civil-01",
+    "domain": "Civil Engineering",
+    "mode": "Academic Learning",
+    "query": "Explain the difference between working stress method (WSM) and limit state method (LSM) in reinforced concrete design.",
+    "expected_concepts": ["Elastic theory vs ultimate strength", "Factor of safety vs partial safety factors", "Serviceability limit state", "Collapse limit state", "Modular ratio"],
+    "expected_answer_components": {
+      "economy": "LSM produces more economical and realistic section designs",
+      "safety": "LSM accounts for variability in both material strength and load intensities"
+    }
+  },
+  {
+    "id": "eval-exam-01",
+    "domain": "Exam Preparation",
+    "mode": "Exam Preparation",
+    "query": "Provide a high-yield 2-day revision summary and 5 practice exam questions with answers for Computer Networks: OSI 7-Layer model and TCP/IP stack.",
+    "expected_concepts": ["All 7 OSI layers and functions", "Protocols at each layer", "Encapsulation / Decapsulation", "TCP vs UDP 3-way handshake", "Practice questions with model marking schemes"],
+    "expected_answer_components": {
+      "distinction": "Clearly state practice questions are generated for revision and not official university exam sheets"
+    }
+  },
+  {
+    "id": "eval-viva-01",
+    "domain": "Practical and Viva",
+    "mode": "Practical & Viva",
+    "query": "What are the common viva questions and expected observations for the Open Circuit and Short Circuit test on a single-phase transformer?",
+    "expected_concepts": ["Core/iron loss measurement via OC test", "Copper/I^2R loss measurement via SC test", "Why LV is open/energized in OC and HV energized in SC", "Efficiency and voltage regulation calculation"],
+    "expected_answer_components": {
+      "viva_q1": "Why is OC test performed on LV side? (Lower voltage supply is readily available in labs)",
+      "viva_q2": "Why are iron losses negligible during SC test? (Applied voltage is very small, typically 5-10% of rated voltage)",
+      "honesty_notice": "States that experimental values depend on actual machine ratings"
+    }
+  },
+  {
+    "id": "eval-project-01",
+    "domain": "Project Guidance",
+    "mode": "Project Guidance",
+    "query": "I want to build an IoT-based smart agricultural monitoring system for my final year project. Suggest architecture, sensor components, communication protocols, and safety considerations.",
+    "expected_concepts": ["Microcontroller (ESP32 / STM32)", "Soil moisture, DHT22, pH sensors", "MQTT / HTTP / LoRaWAN", "Power consumption / Solar harvesting", "Cost estimation", "Safety against moisture ingress (IP65 enclosure)"],
+    "expected_answer_components": {
+      "block_diagram_stages": "Sensors -> Edge MCU -> Gateway -> Cloud MQTT Broker -> Dashboard",
+      "verification_advice": "Prototype on breadboard before PCB fabrication and test sensor calibration in physical soil samples"
+    }
+  }
+]

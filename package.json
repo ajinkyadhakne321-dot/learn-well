@@ -11,8 +11,9 @@
     "server:start": "node server/dist/index.js",
     "db:migrate": "tsx server/src/db/migrate.ts",
     "db:seed": "tsx server/src/db/seed.ts",
-    "test": "tsx server/src/tests/assistant.test.ts && tsx server/src/tests/auth-rbac.test.ts",
-    "test:assistant": "tsx server/src/tests/assistant.test.ts",
+    "voice-agent": "node voice-agent/launcher.js",
+    "test": "tsx server/src/tests/voiceAgent.test.ts",
+    "test:assistant": "tsx server/src/tests/voiceAgent.test.ts",
     "test:auth": "tsx server/src/tests/auth-rbac.test.ts",
     "lint": "eslint .",
     "preview": "vite preview"

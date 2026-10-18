@@ -25,5 +25,17 @@ server/dist
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
 uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+voice-agent/data/uploads/*
+!voice-agent/data/uploads/.gitkeep
+voice-agent/data/indexes/*
+!voice-agent/data/indexes/.gitkeep
+voice-agent/data/audio/*
+!voice-agent/data/audio/.gitkeep
+

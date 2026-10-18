@@ -1,8 +1,35 @@
+export type LearningMode =
+  | 'Academic Learning'
+  | 'Programming & Coding'
+  | 'Engineering Mathematics'
+  | 'Exam Preparation'
+  | 'Practical & Viva'
+  | 'Project Guidance'
+
 export interface QuizQuestionItem {
   prompt: string
   answers: string[]
   correctAnswer: number
   explanation: string
+}
+
+export interface MathVerification {
+  expression: string
+  verified: boolean
+  result: string
+  steps?: string[]
+  error?: string
+}
+
+export interface SourceReference {
+  document_id: string
+  title: string
+  category: string
+  page_number?: number
+  branch?: string
+  subject?: string
+  score?: number
+  snippet: string
 }
 
 export interface AssistantAction {
@@ -23,9 +50,16 @@ export interface AssistantAction {
 }
 
 export interface AssistantApiResponse {
+  response?: string
   spokenText: string
+  mode?: LearningMode
+  sources?: SourceReference[]
+  math_verification?: MathVerification | null
   action?: AssistantAction
-  provider: 'gemini' | 'offline-agent'
+  conversation_id?: string
+  model_used?: string
+  provider: 'local-voice-agent' | 'ollama' | 'local-tutor-offline' | 'gemini' | 'offline-agent'
+  error?: string | null
 }
 
 export interface AssistantRequestContext {
@@ -46,14 +80,31 @@ export interface AssistantRequestContext {
   }>
 }
 
+export interface SendAssistantMessageOptions {
+  mode?: LearningMode
+  branch?: string
+  semester?: string
+  subject?: string
+  conversation_id?: string
+}
+
 export async function sendAssistantMessage(
   message: string,
-  context: AssistantRequestContext = {}
+  context: AssistantRequestContext = {},
+  options: SendAssistantMessageOptions = {}
 ): Promise<AssistantApiResponse> {
   const response = await fetch('/api/assistant/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, context }),
+    body: JSON.stringify({
+      message,
+      context,
+      mode: options.mode || 'Academic Learning',
+      branch: options.branch,
+      semester: options.semester,
+      subject: options.subject,
+      conversation_id: options.conversation_id,
+    }),
   })
 
   if (!response.ok) {
@@ -67,6 +118,11 @@ export async function sendAssistantMessage(
 export async function fetchAssistantStatus(): Promise<{
   available: boolean
   geminiEnabled: boolean
+  apiKeyRequired: boolean
+  pythonAgentRunning?: boolean
+  ollamaRunning?: boolean
+  activeModel?: string
+  modes?: string[]
   supportedActions: string[]
 }> {
   const res = await fetch('/api/assistant/status')

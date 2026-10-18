@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineering AI Tutor — Local Voice-Enabled Assistant</title>
+  <meta name="description" content="AI Tutor for engineering students running 100% locally with open models, syllabus retrieval, math verification, and voice assistance.">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Google Fonts for crisp typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar" role="banner">
+      <div class="navbar-left">
+        <button id="sidebarToggleBtn" class="icon-btn mobile-only" aria-label="Toggle Sidebar">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <div class="logo-container">
+          <div class="logo-badge">⚡</div>
+          <div class="logo-titles">
+            <h1 class="app-title">Engineering AI Tutor</h1>
+            <span class="app-subtitle">Local &bull; Voice-Enabled &bull; Open-Weights</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="navbar-center">
+        <!-- Academic Context Quick Selectors -->
+        <div class="context-filters" role="region" aria-label="Academic Filters">
+          <select id="branchSelect" class="filter-select" aria-label="Engineering Branch">
+            <option value="">All Branches</option>
+            <option value="Computer Engineering">Computer Engineering</option>
+            <option value="Computer Science Engineering">Computer Science (CSE)</option>
+            <option value="Information Technology">Information Technology (IT)</option>
+            <option value="Mechanical Engineering">Mechanical Engineering</option>
+            <option value="Electrical Engineering">Electrical Engineering</option>
+            <option value="Electronics & Communication">Electronics & Comm (ECE)</option>
+            <option value="Civil Engineering">Civil Engineering</option>
+            <option value="Chemical Engineering">Chemical Engineering</option>
+            <option value="AI & Data Science">AI & Data Science</option>
+          </select>
+
+          <select id="semesterSelect" class="filter-select" aria-label="Semester">
+            <option value="">All Semesters</option>
+            <option value="Semester 1">Semester 1</option>
+            <option value="Semester 2">Semester 2</option>
+            <option value="Semester 3">Semester 3</option>
+            <option value="Semester 4">Semester 4</option>
+            <option value="Semester 5">Semester 5</option>
+            <option value="Semester 6">Semester 6</option>
+            <option value="Semester 7">Semester 7</option>
+            <option value="Semester 8">Semester 8</option>
+          </select>
+
+          <input type="text" id="subjectInput" class="filter-input" placeholder="Subject (e.g. Data Structures, Thermodynamics)" aria-label="Subject name">
+        </div>
+      </div>
+
+      <div class="navbar-right">
+        <!-- System Health Pill -->
+        <div id="healthBadge" class="health-pill" title="System Status">
+          <span class="status-dot dot-yellow"></span>
+          <span id="healthText" class="health-text">Checking Local LLM...</span>
+        </div>
+
+        <button id="docsModalBtn" class="nav-btn" title="Manage Educational Documents">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <span>Syllabus Docs (<span id="docsCountBadge">0</span>)</span>
+        </button>
+
+        <button id="settingsModalBtn" class="nav-btn icon-only" title="Settings & Hardware">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-body">
+      <!-- Sidebar with 6 Learning Modes -->
+      <aside class="modes-sidebar" id="modesSidebar" role="navigation" aria-label="Learning Modes">
+        <div class="sidebar-header">
+          <span class="section-label">SELECT LEARNING MODE</span>
+        </div>
+
+        <nav class="mode-buttons-list">
+          <button class="mode-card active" data-mode="Academic Learning" id="mode-academic">
+            <div class="mode-icon">📚</div>
+            <div class="mode-info">
+              <span class="mode-title">Academic Learning</span>
+              <span class="mode-desc">Concept explanations, technical terminology & syllabus outcomes</span>
+            </div>
+          </button>
+
+          <button class="mode-card" data-mode="Programming & Coding" id="mode-coding">
+            <div class="mode-icon">💻</div>
+            <div class="mode-info">
+              <span class="mode-title">Programming & Coding</span>
+              <span class="mode-desc">Algorithms, line-by-line breakdown, Big-O & test cases</span>
+            </div>
+          </button>
+
+          <button class="mode-card" data-mode="Engineering Mathematics" id="mode-math">
+            <div class="mode-icon">📐</div>
+            <div class="mode-info">
+              <span class="mode-title">Engineering Mathematics</span>
+              <span class="mode-desc">Step-by-step calculus, algebra & SymPy verification</span>
+            </div>
+          </button>
+
+          <button class="mode-card" data-mode="Exam Preparation" id="mode-exam">
+            <div class="mode-icon">📝</div>
+            <div class="mode-info">
+              <span class="mode-title">Exam Preparation</span>
+              <span class="mode-desc">Revision notes, high-yield questions & model answers</span>
+            </div>
+          </button>
+
+          <button class="mode-card" data-mode="Practical & Viva" id="mode-viva">
+            <div class="mode-icon">🔬</div>
+            <div class="mode-info">
+              <span class="mode-title">Practical & Viva</span>
+              <span class="mode-desc">Lab experiments, apparatus, procedure & viva prep</span>
+            </div>
+          </button>
+
+          <button class="mode-card" data-mode="Project Guidance" id="mode-project">
+            <div class="mode-icon">🚀</div>
+            <div class="mode-info">
+              <span class="mode-title">Project Guidance</span>
+              <span class="mode-desc">Capstone ideas, architecture, components & safety</span>
+            </div>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="active-mode-banner">
+            <span class="banner-label">Active:</span>
+            <strong id="currentModeLabel">Academic Learning</strong>
+          </div>
+          <button id="clearChatBtn" class="clear-btn" title="Clear current conversation history">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Clear Conversation
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center Conversation & Output Panel -->
+      <main class="chat-container" role="main">
+        <!-- Messages Area -->
+        <div class="messages-scroll" id="messagesScroll">
+          <!-- Welcome Greeting Card -->
+          <div class="welcome-card" id="welcomeCard">
+            <div class="welcome-icon">🎓</div>
+            <h2>Welcome to your Engineering AI Tutor</h2>
+            <p>
+              Your local voice-enabled engineering mentor. Select a learning mode on the left,
+              upload your university syllabus or textbooks, and ask questions via text or voice.
+            </p>
+            <div class="quick-prompts">
+              <button class="quick-chip" data-prompt="Explain Fourier Transform and its applications in signal processing.">
+                📡 Fourier Transform applications
+              </button>
+              <button class="quick-chip" data-prompt="Write a Python program implementing Dijkstra's algorithm with explanation and time complexity.">
+                💻 Dijkstra's Shortest Path
+              </button>
+              <button class="quick-chip" data-prompt="Solve x^2 - 5*x + 6 = 0 step by step and verify with SymPy.">
+                📐 Solve quadratic equation step-by-step
+              </button>
+              <button class="quick-chip" data-prompt="Give me high-yield viva questions for the Single Phase Transformer open circuit test.">
+                🔬 Transformer Lab Viva Questions
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Voice Speech Preview Bar (Visible when recording or speech transcribed) -->
+        <div id="speechPreviewBar" class="speech-preview-bar hidden">
+          <div class="recording-indicator">
+            <span class="rec-pulse"></span>
+            <span id="speechStatusText">Listening to speech...</span>
+          </div>
+          <div class="speech-preview-actions">
+            <button id="cancelSpeechBtn" class="chip-btn danger">Cancel</button>
+            <button id="useSpeechBtn" class="chip-btn primary">Send Recognized Text</button>
+          </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="chat-input-wrapper">
+          <div class="audio-controls-bar" id="audioControlsBar">
+            <div class="now-speaking-indicator hidden" id="nowSpeakingIndicator">
+              <span class="sound-wave">
+                <span></span><span></span><span></span><span></span>
+              </span>
+              <span id="speakingText">Reading answer aloud...</span>
+              <button id="stopAudioBtn" class="stop-audio-btn" title="Stop speech playback">Stop Audio</button>
+            </div>
+          </div>
+
+          <form id="chatForm" class="chat-form">
+            <textarea
+              id="messageInput"
+              class="chat-textarea"
+              placeholder="Ask an engineering question or click the microphone to speak... (Shift+Enter for newline)"
+              rows="2"
+              aria-label="Student Question Input"
+            ></textarea>
+
+            <div class="input-actions">
+              <!-- Microphone Button -->
+              <button
+                type="button"
+                id="micBtn"
+                class="action-btn mic-btn"
+                title="Voice input (Click to speak)"
+                aria-label="Voice input"
+              >
+                <svg id="micIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+
+              <!-- Send Button -->
+              <button
+                type="submit"
+                id="sendBtn"
+                class="action-btn send-btn"
+                title="Send Question (Enter)"
+                aria-label="Send Question"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </form>
+          <div class="input-subtext">
+            <span>Engineering AI Tutor runs locally. No external APIs or paid services are called.</span>
+          </div>
+        </div>
+      </main>
+
+      <!-- Right Drawer: Retrieved Sources & Provenance Inspector -->
+      <aside class="sources-drawer" id="sourcesDrawer">
+        <div class="drawer-header">
+          <h3>Syllabus Grounding</h3>
+          <button id="closeDrawerBtn" class="icon-btn" aria-label="Close Inspector">&times;</button>
+        </div>
+        <div class="drawer-content" id="sourcesDrawerContent">
+          <p class="empty-state">No document excerpts retrieved for the current message.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Documents Management Modal -->
+  <div id="docsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="docsModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="docsModalTitle">Educational Documents & Syllabus Knowledge Base</h2>
+        <button class="modal-close-btn" data-close="docsModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Upload Form -->
+        <section class="upload-section">
+          <h3>Upload Learning Materials (PDF, TXT, MD)</h3>
+          <form id="uploadDocForm" class="upload-form">
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label for="docFileInput">Document File</label>
+                <input type="file" id="docFileInput" accept=".pdf,.txt,.md" required>
+              </div>
+              <div class="form-group flex-2">
+                <label for="docTitleInput">Document Title</label>
+                <input type="text" id="docTitleInput" placeholder="e.g. Data Structures Syllabus 2026">
+              </div>
+              <div class="form-group flex-2">
+                <label for="docCategorySelect">Category</label>
+                <select id="docCategorySelect">
+                  <option value="University Syllabus">University Syllabus</option>
+                  <option value="Lecture Notes">Lecture Notes</option>
+                  <option value="Textbooks and References">Textbooks and References</option>
+                  <option value="Engineering Mathematics">Engineering Mathematics</option>
+                  <option value="Programming and Coding">Programming and Coding</option>
+                  <option value="Laboratory Manuals">Laboratory Manuals</option>
+                  <option value="Practical and Viva">Practical and Viva</option>
+                  <option value="Previous Examination Papers">Previous Examination Papers</option>
+                  <option value="Project Documentation">Project Documentation</option>
+                  <option value="Other Resources">Other Resources</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="docBranchInput">Branch</label>
+                <input type="text" id="docBranchInput" placeholder="e.g. Computer Science">
+              </div>
+              <div class="form-group">
+                <label for="docSubjectInput">Subject</label>
+                <input type="text" id="docSubjectInput" placeholder="e.g. Operating Systems">
+              </div>
+              <div class="form-group">
+                <label for="docUniversityInput">University</label>
+                <input type="text" id="docUniversityInput" placeholder="e.g. SPPU / Mumbai University">
+              </div>
+              <div class="form-group">
+                <label for="docSemesterInput">Semester</label>
+                <input type="text" id="docSemesterInput" placeholder="e.g. Semester 4">
+              </div>
+            </div>
+
+            <button type="submit" id="uploadSubmitBtn" class="primary-btn">
+              <span>Upload & Index Document</span>
+            </button>
+          </form>
+        </section>
+
+        <!-- Document List -->
+        <section class="docs-list-section">
+          <h3>Indexed Documents</h3>
+          <div class="table-container">
+            <table class="data-table" id="docsTable">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Subject</th>
+                  <th>Pages</th>
+                  <th>Chunks</th>
+                  <th>Size</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="docsTableBody">
+                <tr><td colspan="7" class="loading-cell">Loading documents...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings & Diagnostics Modal -->
+  <div id="settingsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="settingsModalTitle">System Diagnostics & Model Configuration</h2>
+        <button class="modal-close-btn" data-close="settingsModal">&times;</button>
+      </div>
+
+      <div class="modal-body settings-body">
+        <div class="settings-group">
+          <h3>Local Language Model (Ollama)</h3>
+          <div class="diagnostic-row">
+            <span class="diag-label">Ollama Service Status:</span>
+            <span class="diag-val" id="diagOllamaStatus">Checking...</span>
+          </div>
+          <div class="diagnostic-row">
+            <span class="diag-label">Ollama Base URL:</span>
+            <span class="diag-val" id="diagOllamaUrl">http://localhost:11434</span>
+          </div>
+          <div class="diagnostic-row">
+            <span class="diag-label">Current Active Model:</span>
+            <div class="model-change-row">
+              <input type="text" id="activeModelInput" class="setting-input">
+              <button id="saveModelBtn" class="secondary-btn">Save Model</button>
+            </div>
+          </div>
+          <div class="diagnostic-row">
+            <span class="diag-label">Installed Ollama Models:</span>
+            <span class="diag-val" id="diagInstalledModels">None detected</span>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>Hardware & Recommendations</h3>
+          <div class="diagnostic-row">
+            <span class="diag-label">Hardware Recommendation:</span>
+            <span class="diag-val highlight-val" id="diagHwRec">Analyzing...</span>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>Speech & Retrieval Status</h3>
+          <div class="diagnostic-row">
+            <span class="diag-label">Vector Retrieval:</span>
+            <span class="diag-val" id="diagIndexStatus">Active</span>
+          </div>
+          <div class="diagnostic-row">
+            <span class="diag-label">Speech-to-Text (STT):</span>
+            <span class="diag-val" id="diagSttStatus">Checking...</span>
+          </div>
+          <div class="diagnostic-row">
+            <span class="diag-label">Text-to-Speech (TTS):</span>
+            <span class="diag-val" id="diagTtsStatus">Checking...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client Application Script -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

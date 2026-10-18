@@ -11,8 +11,14 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
-  HelpCircle,
   Headphones,
+  CheckCircle2,
+  BookOpen,
+  Code,
+  Calculator,
+  FileText,
+  FlaskConical,
+  Rocket,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -38,19 +44,80 @@ import {
   fetchAssistantStatus,
   sendAssistantMessage,
   type AssistantAction,
+  type LearningMode,
+  type MathVerification,
+  type SourceReference,
 } from '../services/assistantApi'
 
+export interface PageChatMessage {
+  id: string
+  sender: 'user' | 'assistant'
+  text: string
+  mode?: LearningMode
+  math_verification?: MathVerification | null
+  sources?: SourceReference[]
+  action?: AssistantAction
+  timestamp: string
+}
+
+const LEARNING_MODES: Array<{ id: LearningMode; label: string; icon: typeof BookOpen; desc: string }> = [
+  { id: 'Academic Learning', label: 'Academic Learning', icon: BookOpen, desc: 'Concepts, analogies & syllabus depth' },
+  { id: 'Programming & Coding', label: 'Programming & Coding', icon: Code, desc: 'Clean commented code, Big-O & algorithms' },
+  { id: 'Engineering Mathematics', label: 'Engineering Math', icon: Calculator, desc: 'Step-by-step calculus & SymPy verification' },
+  { id: 'Exam Preparation', label: 'Exam Prep', icon: FileText, desc: 'High-yield archetypes & revision answers' },
+  { id: 'Practical & Viva', label: 'Practical & Viva', icon: FlaskConical, desc: 'Lab apparatus, procedures & viva Q&A' },
+  { id: 'Project Guidance', label: 'Project Guidance', icon: Rocket, desc: 'Architecture, prototyping & milestones' },
+]
+
+const QUICK_PROMPTS_BY_MODE: Record<LearningMode, string[]> = {
+  'Academic Learning': [
+    'What are ACID properties in database systems?',
+    'Explain Von Neumann vs Harvard architecture',
+    'What is the difference between TCP and UDP?',
+    'Explain Polymorphism and Inheritance with examples',
+  ],
+  'Programming & Coding': [
+    'Explain QuickSort with step-by-step python code',
+    'How do I implement binary search recursively?',
+    'What is the difference between BFS and DFS?',
+    'Explain Big-O time and space complexity with examples',
+  ],
+  'Engineering Mathematics': [
+    'Find the derivative of x^3 + 4*x',
+    'Solve the differential equation dy/dx + 2*y = 4*x',
+    'Calculate the integral of sin(x)*cos(x)',
+    'Compute eigenvalues and eigenvectors of a 2x2 matrix',
+  ],
+  'Exam Preparation': [
+    'Give a 10-mark model answer for OS deadlock conditions',
+    'Summarize Software Requirements Specification (SRS)',
+    'Top 5 high-yield exam questions on Computer Networks',
+  ],
+  'Practical & Viva': [
+    'What are common errors in the diode characteristics lab?',
+    'Viva questions on sorting algorithms complexity',
+    'Explain apparatus ratings and safety in circuits lab',
+  ],
+  'Project Guidance': [
+    'Suggest system architecture for an accessible web app',
+    'How to choose between relational and document databases',
+    'Step-by-step implementation roadmap for capstone project',
+  ],
+}
+
 export function AssistantPage() {
-  const [messages, setMessages] = useState<
-    Array<{ id: string; sender: 'user' | 'assistant'; text: string; action?: AssistantAction; timestamp: string }>
-  >([
+  const [messages, setMessages] = useState<PageChatMessage[]>([
     {
       id: 'init-1',
       sender: 'assistant',
-      text: 'Welcome to your Voice Assistant! I can help you navigate subjects, read lessons aloud, check upcoming deadlines, take voice notes, and answer academic questions.',
+      text: 'Welcome to your Local Voice Assistant! I run completely locally with zero paid API keys required. Choose a learning mode, speak or type your question, and explore math derivations, coding, or syllabus concepts.',
       timestamp: 'Ready',
     },
   ])
+  const [activeMode, setActiveMode] = useState<LearningMode>('Academic Learning')
+  const [branch, setBranch] = useState('')
+  const [semester, setSemester] = useState('')
+  const [subject, setSubject] = useState('')
   const [inputText, setInputText] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
@@ -58,7 +125,12 @@ export function AssistantPage() {
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1.25)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [handsFreeMode, setHandsFreeMode] = useState(false)
-  const [statusInfo, setStatusInfo] = useState<{ available: boolean; geminiEnabled: boolean } | null>(null)
+  const [statusInfo, setStatusInfo] = useState<{
+    available: boolean
+    activeModel?: string
+    pythonAgentRunning?: boolean
+    ollamaRunning?: boolean
+  } | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
   const location = useLocation()
@@ -72,7 +144,7 @@ export function AssistantPage() {
   useEffect(() => {
     fetchAssistantStatus()
       .then((data) => setStatusInfo(data))
-      .catch(() => setStatusInfo({ available: true, geminiEnabled: false }))
+      .catch(() => setStatusInfo({ available: true, activeModel: 'local-tutor' }))
   }, [])
 
   useEffect(() => {
@@ -105,14 +177,6 @@ export function AssistantPage() {
       console.warn('Error during close cleanup:', err)
     }
 
-    if (typeof window !== 'undefined' && window.opener) {
-      try {
-        window.close()
-      } catch {
-        // Fallback to navigate
-      }
-    }
-
     if (window.history.length > 1 && window.history.state && window.history.state.idx > 0) {
       navigate(-1)
     } else {
@@ -120,24 +184,13 @@ export function AssistantPage() {
     }
   }
 
-  // Keyboard shortcut: Escape safely closes the Assistant and returns to Dashboard/previous page
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        handleCloseAssistant()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate])
-
   function announce(text: string) {
     setAnnouncement(text)
   }
 
   function handleExecuteAction(action: AssistantAction) {
     if (!action) return
+
     if (action.type === 'CREATE_NOTE') {
       playChimeNoteSaved()
     } else {
@@ -153,7 +206,7 @@ export function AssistantPage() {
       case 'NAVIGATE':
         if (action.target) {
           navigate(action.target)
-          announce(`Navigating to ${action.label || action.target}`)
+          announce(`Navigated to ${action.label || action.target}`)
         }
         break
 
@@ -162,10 +215,10 @@ export function AssistantPage() {
           setActiveQuiz({
             subject: action.subject || 'Practice',
             title: action.title || 'Practice Quiz',
-            questions: action.questions,
+            questions: action.questions as any,
           })
-          announce(`Created quiz: ${action.title || 'Practice Quiz'}. Navigating to Quiz page.`)
           navigate('/quiz')
+          announce(`Loaded practice quiz for ${action.subject || 'Practice'}. Navigating to Quiz.`)
         }
         break
 
@@ -178,18 +231,18 @@ export function AssistantPage() {
             content: action.content,
             updatedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           })
-          announce(`Created note: ${action.title}`)
+          announce(`Saved new note: ${action.title}`)
         }
         break
 
       case 'SET_ACCESSIBILITY': {
-        const next = { ...preferences }
-        if (action.highContrast !== undefined) next.highContrast = action.highContrast
-        if (action.textSize) next.textSize = action.textSize
-        if (action.underlineLinks !== undefined) next.underlineLinks = action.underlineLinks
-        if (action.strongerFocus !== undefined) next.strongerFocus = action.strongerFocus
-        updatePreferences(next)
-        announce('Updated accessibility settings.')
+        const nextPreferences = { ...preferences }
+        if (action.highContrast !== undefined) nextPreferences.highContrast = action.highContrast
+        if (action.textSize) nextPreferences.textSize = action.textSize
+        if (action.underlineLinks !== undefined) nextPreferences.underlineLinks = action.underlineLinks
+        if (action.strongerFocus !== undefined) nextPreferences.strongerFocus = action.strongerFocus
+        updatePreferences(nextPreferences)
+        announce('Accessibility settings updated.')
         break
       }
 
@@ -212,14 +265,12 @@ export function AssistantPage() {
     const trimmed = queryText.trim()
     if (!trimmed) return
 
-    const isCloseCommand =
-      /^(close|exit|quit|dismiss|leave|bye|goodbye|stop|close tab|close assistant|close voice assistant|close the tab|back to dashboard|go back)$/i.test(trimmed) ||
-      /\b(close|exit|leave|dismiss|quit|hide|shut)\s+(down\s+)?(the\s+|this\s+)?(ai\s+)?(voice\s+)?(assistant|modal|tab|drawer|dialog|page|window)\b/i.test(trimmed) ||
-      /\b(close|exit|dismiss|quit)\s+(the\s+|this\s+)?(ai\s+voice\s+assistant|assistant|voice assistant)\s*(tab|modal|window|dialog|drawer|page)?\b/i.test(trimmed)
-
-    if (isCloseCommand) {
+    if (
+      /^(close|exit|quit|dismiss|leave|bye|goodbye|stop|close tab|close assistant|close voice assistant)$/i.test(trimmed) ||
+      /\b(close|exit|leave|dismiss|quit|hide|shut)\s+(the\s+|this\s+)?(ai\s+)?(voice\s+)?(assistant|tab|drawer|dialog|window)\b/i.test(trimmed)
+    ) {
       setHandsFreeMode(false)
-      announce('Closing Voice Assistant and returning to Dashboard.')
+      announce('Closing Voice Assistant.')
       handleCloseAssistant()
       return
     }
@@ -235,38 +286,51 @@ export function AssistantPage() {
     cancelSpeech()
     setInputText('')
 
-    const userMsg = {
+    const userMsg: PageChatMessage = {
       id: `msg-${Date.now()}-user`,
-      sender: 'user' as const,
+      sender: 'user',
       text: trimmed,
+      mode: activeMode,
       timestamp: 'Just now',
     }
     setMessages((prev) => [...prev, userMsg])
     setIsThinking(true)
     playChimeProcessing()
-    announce('Processing your request...')
+    announce('Processing your question...')
 
     try {
-      const res = await sendAssistantMessage(trimmed, {
-        currentPath: location.pathname,
-        pageTitle: 'Voice Assistant Hub',
-        studentName: profile.name,
-        notesCount: notes.length,
-        preferences: {
-          highContrast: preferences.highContrast,
-          textSize: preferences.textSize,
-          underlineLinks: preferences.underlineLinks,
+      const res = await sendAssistantMessage(
+        trimmed,
+        {
+          currentPath: location.pathname,
+          pageTitle: 'Voice Assistant Hub',
+          studentName: profile.name,
+          notesCount: notes.length,
+          preferences: {
+            highContrast: preferences.highContrast,
+            textSize: preferences.textSize,
+            underlineLinks: preferences.underlineLinks,
+          },
+          history: messages.slice(-8).map((m) => ({
+            role: m.sender,
+            text: m.text,
+          })),
         },
-        history: messages.slice(-8).map((m) => ({
-          role: m.sender,
-          text: m.text,
-        })),
-      })
+        {
+          mode: activeMode,
+          branch: branch || undefined,
+          semester: semester || undefined,
+          subject: subject || undefined,
+        }
+      )
 
-      const botMsg = {
+      const botMsg: PageChatMessage = {
         id: `msg-${Date.now()}-bot`,
-        sender: 'assistant' as const,
-        text: res.spokenText,
+        sender: 'assistant',
+        text: res.response || res.spokenText,
+        mode: res.mode || activeMode,
+        math_verification: res.math_verification,
+        sources: res.sources,
         action: res.action,
         timestamp: 'Just now',
       }
@@ -310,10 +374,10 @@ export function AssistantPage() {
       }
     } catch {
       playChimeError()
-      const errorMsg = {
+      const errorMsg: PageChatMessage = {
         id: `msg-${Date.now()}-err`,
-        sender: 'assistant' as const,
-        text: 'Sorry, I had trouble processing that request. Please try again.',
+        sender: 'assistant',
+        text: 'Sorry, I had trouble processing that request. Please make sure the local tutor or ollama is active.',
         timestamp: 'Just now',
       }
       setMessages((prev) => [...prev, errorMsg])
@@ -348,7 +412,7 @@ export function AssistantPage() {
         onError: () => {
           setIsListening(false)
           playChimeError()
-          announce('Did not understand audio. Please try again.')
+          announce('Could not understand audio. Please try again.')
         },
         onEnd: () => setIsListening(false),
       })
@@ -357,9 +421,9 @@ export function AssistantPage() {
         recognitionRef.current = recognizer
         recognizer.start()
       }
-    } catch (e) {
-      console.error(e)
+    } catch {
       setIsListening(false)
+      playChimeError()
     }
   }
 
@@ -368,7 +432,7 @@ export function AssistantPage() {
       try {
         recognitionRef.current.stop()
       } catch {
-        // Ignored
+        // Ignore
       }
       recognitionRef.current = null
     }
@@ -377,343 +441,329 @@ export function AssistantPage() {
 
   function toggleListening() {
     if (isListening) {
-      playChimeCancel()
       stopListening()
-      announce('Microphone stopped.')
+      announce('Microphone muted.')
     } else {
       startListening()
     }
   }
 
-  function renderMessageContent(text: string) {
-    if (!text.includes('```')) {
-      return <p>{text}</p>
-    }
-    const parts = text.split(/(```[\s\S]*?```)/g)
-    return (
-      <>
-        {parts.map((part, index) => {
-          if (part.startsWith('```') && part.endsWith('```')) {
-            const lines = part.slice(3, -3).trim()
-            const firstLineBreak = lines.indexOf('\n')
-            let code = lines
-            if (firstLineBreak > 0) {
-              const firstLine = lines.slice(0, firstLineBreak).trim()
-              if (/^[a-zA-Z0-9_-]+$/.test(firstLine)) {
-                code = lines.slice(firstLineBreak + 1)
-              }
-            }
-            return (
-              <pre key={index} tabIndex={0} aria-label="Code snippet">
-                <code>{code}</code>
-              </pre>
-            )
-          }
-          if (!part.trim()) return null
-          return <p key={index}>{part.trim()}</p>
-        })}
-      </>
-    )
+  function cycleSpeechRate() {
+    const rates: SpeechRate[] = [1, 1.25, 1.5]
+    const nextIndex = (rates.indexOf(speechRate) + 1) % rates.length
+    const nextRate = rates[nextIndex]
+    setSpeechRate(nextRate)
+    announce(`Speech speed set to ${nextRate}x`)
   }
 
   return (
-    <div className="feature-page assistant-page-container">
-      {/* Screen Reader Announcements */}
-      <div className="visually-hidden" aria-live="assertive" role="status">
+    <div className="assistant-page-container">
+      {/* Live Region for Screen Readers */}
+      <div className="sr-only" role="status" aria-live="assertive" aria-atomic="true">
         {announcement}
       </div>
 
-      {/* Page Navigation & Close Controls */}
+      <PageHeader
+        eyebrow="Zero API Key AI Tutor"
+        title="AI Voice Assistant & Engineering Mentor"
+        description="Local, voice-enabled tutor powered by open-weights models and symbolic mathematics. Zero paid API keys required."
+      />
+
       <div className="assistant-page-header-row">
-        <Link
-          to="/"
-          className="back-link assistant-page-back-link"
-          onClick={() => stopAudioPlayback()}
-          aria-label="Back to Dashboard"
-        >
+        <Link to="/" className="assistant-page-back-link" aria-label="Go back to Dashboard">
           <ArrowLeft size={16} aria-hidden="true" />
           <span>Back to Dashboard</span>
         </Link>
-        <button
-          type="button"
-          className="button button-secondary assistant-exit-btn"
-          onClick={handleCloseAssistant}
-          aria-label="Close Assistant and return to Dashboard"
-          title="Close tab (Escape)"
-        >
-          <X size={15} aria-hidden="true" />
-          <span>Close Assistant</span>
-        </button>
-      </div>
-
-      <PageHeader
-        eyebrow="VOICE & COGNITIVE ACCESSIBILITY"
-        title="AI Voice Assistant"
-        description="A voice-first co-pilot for blind and low-vision students. Navigate the platform, listen to lesson explanations, check deadlines, and capture audio notes hands-free."
-      />
-
-      {/* Status Bar */}
-      <div className="assistant-status-banner">
-        <div className="status-item">
-          <span className="status-dot active" aria-hidden="true" />
-          <span>Speech Engine: <strong>Web Speech Audio + Earcons</strong></span>
-        </div>
-        <div className="status-item">
-          <span className={`status-dot ${statusInfo?.geminiEnabled ? 'active' : 'info'}`} aria-hidden="true" />
-          <span>
-            Intelligence Mode:{' '}
-            <strong>{statusInfo?.geminiEnabled ? 'Google Gemini 1.5 Flash' : 'Built-in Universal NLU'}</strong>
-          </span>
-        </div>
-        <div className="status-item hands-free-wrapper">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="assistant-health-badge" title="Local AI Engine Status">
+            <span className="assistant-health-dot" />
+            <span>Local AI Active ({statusInfo?.activeModel || 'Zero API Keys'})</span>
+          </div>
           <button
             type="button"
-            className={`button button-secondary hands-free-btn ${handsFreeMode ? 'is-active' : ''}`}
-            onClick={() => {
-              const next = !handsFreeMode
-              setHandsFreeMode(next)
-              announce(
-                next
-                  ? 'Hands-free auto-listening enabled. The assistant will listen automatically after speaking.'
-                  : 'Hands-free mode turned off.'
-              )
-            }}
-            aria-pressed={handsFreeMode}
-            aria-label={handsFreeMode ? 'Hands-Free Auto-Listen active. Click to turn off.' : 'Turn on Hands-Free Auto-Listen'}
+            className="assistant-exit-btn"
+            onClick={handleCloseAssistant}
+            aria-label="Close Assistant and exit"
+            title="Exit Assistant"
           >
-            <Headphones size={15} aria-hidden="true" />
-            <span>Hands-Free: <strong>{handsFreeMode ? 'ON' : 'OFF'}</strong></span>
+            <X size={16} aria-hidden="true" />
+            <span>Close</span>
           </button>
-        </div>
-        <div className="status-item speed-selector-wrapper">
-          <label htmlFor="page-speech-rate">Reading Speed:</label>
-          <select
-            id="page-speech-rate"
-            value={speechRate}
-            onChange={(e) => setSpeechRate(parseFloat(e.target.value) as SpeechRate)}
-            aria-label="Adjust assistant reading speed"
-          >
-            <option value={1.0}>1.0x (Standard)</option>
-            <option value={1.25}>1.25x (Recommended)</option>
-            <option value={1.5}>1.5x (Fast)</option>
-            <option value={1.75}>1.75x (Rapid)</option>
-            <option value={2.0}>2.0x (Screen Reader Pro)</option>
-          </select>
         </div>
       </div>
 
-      {/* Main Conversation Layout */}
-      <div className="assistant-main-card">
-        {/* Messages feed */}
-        <div className="assistant-page-messages" role="log" aria-label="Conversation log">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`assistant-chat-bubble ${msg.sender === 'user' ? 'bubble-user' : 'bubble-assistant'}`}
+      {/* Six Learning Modes Bar */}
+      <div className="assistant-mode-bar" role="tablist" aria-label="Select Learning Mode">
+        {LEARNING_MODES.map((m) => {
+          const Icon = m.icon
+          const isActive = activeMode === m.id
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`assistant-mode-pill ${isActive ? 'active' : ''}`}
+              onClick={() => {
+                setActiveMode(m.id)
+                announce(`Switched to mode: ${m.label}`)
+              }}
+              title={m.desc}
             >
-              <div className="bubble-content">
-                {renderMessageContent(msg.text)}
-                {msg.action && (
-                  <div className="bubble-action-tag">
-                    <ArrowRight size={14} aria-hidden="true" />
-                    <span>
-                      {msg.action.type === 'NAVIGATE' && `Navigated to ${msg.action.label || msg.action.target}`}
-                      {msg.action.type === 'CREATE_NOTE' && `Note Saved: ${msg.action.title}`}
-                      {msg.action.type === 'SET_ACCESSIBILITY' && 'Accessibility settings applied'}
-                      {msg.action.type === 'READ_ALOUD' && 'Spoken lesson narration'}
-                    </span>
+              <Icon size={14} aria-hidden="true" />
+              <span>{m.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Academic Context Quick Selectors */}
+      <div className="assistant-filters-bar" role="region" aria-label="Academic Context Filters">
+        <select
+          className="assistant-filter-select"
+          value={branch}
+          onChange={(e) => setBranch(e.target.value)}
+          aria-label="Engineering Branch"
+        >
+          <option value="">All Branches</option>
+          <option value="Computer Science">Computer Science (CSE)</option>
+          <option value="Information Technology">Information Technology (IT)</option>
+          <option value="Computer Engineering">Computer Engineering</option>
+          <option value="Mechanical Engineering">Mechanical Engineering</option>
+          <option value="Electrical Engineering">Electrical Engineering</option>
+          <option value="Electronics & Comm">Electronics & Comm (ECE)</option>
+          <option value="Civil Engineering">Civil Engineering</option>
+          <option value="AI & Data Science">AI & Data Science</option>
+        </select>
+
+        <select
+          className="assistant-filter-select"
+          value={semester}
+          onChange={(e) => setSemester(e.target.value)}
+          aria-label="Semester"
+        >
+          <option value="">All Semesters</option>
+          {Array.from({ length: 8 }, (_, i) => (
+            <option key={i + 1} value={`Semester ${i + 1}`}>
+              Semester {i + 1}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          className="assistant-filter-input"
+          placeholder="Subject (e.g. Data Structures, Calculus, DBMS)"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          aria-label="Filter by subject"
+        />
+      </div>
+
+      {/* Main Chat Interface */}
+      <div className="assistant-main-card">
+        <div className="assistant-page-messages" role="log" aria-label="Conversation messages">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`assistant-chat-bubble ${msg.sender}`} tabIndex={0}>
+              <div className="bubble-header">
+                <span className="bubble-sender">
+                  {msg.sender === 'user' ? profile.name || 'You' : 'Voice Mentor'}
+                </span>
+                {msg.mode && <span className="bubble-time">• {msg.mode}</span>}
+                <span className="bubble-time">• {msg.timestamp}</span>
+              </div>
+              <div className="bubble-content" style={{ whiteSpace: 'pre-wrap' }}>
+                {msg.text}
+              </div>
+
+              {/* Math Verification Proof Display */}
+              {msg.math_verification && msg.math_verification.verified && (
+                <div className="assistant-math-card">
+                  <div className="assistant-math-header">
+                    <CheckCircle2 size={16} />
+                    <span>Symbolic Mathematics Verified (SymPy)</span>
                   </div>
-                )}
-              </div>
-              <div className="bubble-meta">
-                <span>{msg.sender === 'user' ? 'Student' : 'LearnWell Assistant'}</span>
-                {msg.sender === 'assistant' && (
-                  <button
-                    type="button"
-                    className="bubble-repeat-btn"
-                    onClick={() => speakText(msg.text, { rate: speechRate })}
-                    aria-label={`Listen again to: ${msg.text.slice(0, 30)}`}
-                  >
-                    <Volume2 size={13} aria-hidden="true" /> Listen again
-                  </button>
-                )}
-              </div>
+                  <div>Expression: <code>{msg.math_verification.expression}</code></div>
+                  <div className="assistant-math-result">
+                    Result: {msg.math_verification.result}
+                  </div>
+                  {msg.math_verification.steps && (
+                    <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                      {msg.math_verification.steps.map((st, idx) => (
+                        <li key={idx}>{st}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* Sources Citation Display */}
+              {msg.sources && msg.sources.length > 0 && (
+                <div className="assistant-sources-card">
+                  <div className="assistant-sources-header">
+                    <span>Cited Syllabus / Reference Materials ({msg.sources.length})</span>
+                  </div>
+                  {msg.sources.map((s, idx) => (
+                    <div key={idx} className="assistant-source-item">
+                      <strong>{s.title}</strong> {s.page_number ? `(Page ${s.page_number})` : ''}: {s.snippet}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {msg.action && (
+                <div className="bubble-action">
+                  {msg.action.type === 'NAVIGATE' && (
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={() => handleExecuteAction(msg.action!)}
+                    >
+                      <ArrowRight size={14} aria-hidden="true" />
+                      <span>Go to {msg.action.label || msg.action.target}</span>
+                    </button>
+                  )}
+                  {msg.action.type === 'CREATE_NOTE' && (
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={() => handleExecuteAction(msg.action!)}
+                    >
+                      <FilePlus size={14} aria-hidden="true" />
+                      <span>Note Saved: {msg.action.title}</span>
+                    </button>
+                  )}
+                  {msg.action.type === 'LOAD_QUIZ' && (
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={() => handleExecuteAction(msg.action!)}
+                    >
+                      <Layers size={14} aria-hidden="true" />
+                      <span>Start Practice Quiz</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 
           {isThinking && (
-            <div className="assistant-thinking-indicator" role="status">
+            <div className="assistant-thinking-indicator" aria-label="Thinking">
               <span className="dot dot-1" />
               <span className="dot dot-2" />
               <span className="dot dot-3" />
-              <span className="visually-hidden">Thinking...</span>
+              <span className="thinking-text">Voice Mentor is reasoning...</span>
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggested Voice Prompts */}
-        <div className="assistant-sample-prompts">
-          <p className="prompts-label">Try speaking or clicking these commands:</p>
-          <div className="prompts-grid">
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Who was Alan Turing?')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "Who was Alan Turing?"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('What is photosynthesis?')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "What is photosynthesis?"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Explain quantum computing simply')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "Quantum computing"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Save that to my notes')}
-            >
-              <FilePlus size={14} aria-hidden="true" /> "Save that to my notes"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Create a quiz on Software Engineering')}
-            >
-              <Sparkles size={14} aria-hidden="true" /> "Quiz me on Software Engineering"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Take me to my notes')}
-            >
-              <Layers size={14} aria-hidden="true" /> "Go to my notes"
-            </button>
-            <button
-              type="button"
-              className="quick-prompt-chip"
-              onClick={() => handleSendMessage('Turn on high contrast')}
-            >
-              <HelpCircle size={14} aria-hidden="true" /> "Enable high contrast"
-            </button>
+        {/* Quick Prompts for Active Mode */}
+        <div className="assistant-sample-prompts" aria-label="Quick sample prompts">
+          <span className="sample-label">Suggested in {activeMode}:</span>
+          <div className="sample-chips-row">
+            {QUICK_PROMPTS_BY_MODE[activeMode]?.map((prompt, i) => (
+              <button
+                key={i}
+                type="button"
+                className="sample-chip"
+                onClick={() => void handleSendMessage(prompt)}
+              >
+                <Sparkles size={12} aria-hidden="true" />
+                <span>{prompt}</span>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Input Bar */}
         <div className="assistant-page-input-bar">
+          <button
+            type="button"
+            className={`assistant-mic-btn ${isListening ? 'listening' : ''}`}
+            onClick={toggleListening}
+            aria-label={isListening ? 'Stop listening' : 'Start microphone'}
+            title={isListening ? 'Listening (Click to stop)' : 'Click to talk (or press Space)'}
+          >
+            {isListening ? <MicOff size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
+          </button>
+
           <form
-            className="assistant-input-form"
+            className="assistant-input-wrapper"
             onSubmit={(e) => {
               e.preventDefault()
               void handleSendMessage(inputText)
             }}
           >
+            <input
+              ref={inputRef}
+              type="text"
+              className="assistant-text-field"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={`Ask anything in ${activeMode}... (e.g. "Explain QuickSort", "Take me to notes")`}
+              aria-label="Message for Voice Assistant"
+            />
             <button
-              type="button"
-              className={`assistant-mic-btn ${isListening ? 'listening' : ''} ${isSpeaking ? 'speaking' : ''}`}
-              onClick={toggleListening}
-              aria-label={isListening ? 'Stop listening' : 'Start voice recognition. Press Space or Alt+A.'}
-              title="Toggle Microphone (Alt+A)"
+              type="submit"
+              className="assistant-send-btn"
+              disabled={!inputText.trim()}
+              aria-label="Send message"
             >
-              {isListening ? (
-                <>
-                  <span className="mic-pulse" aria-hidden="true" />
-                  <MicOff size={24} aria-hidden="true" />
-                </>
-              ) : (
-                <Mic size={24} aria-hidden="true" />
-              )}
-            </button>
-
-            <div className="assistant-input-wrapper">
-              <input
-                ref={inputRef}
-                type="text"
-                className="assistant-text-field"
-                placeholder={isListening ? 'Listening to your voice...' : 'Speak or type any question...'}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                aria-label="Input field for voice assistant commands"
-              />
-              {isListening && (
-                <div className="voice-wave-bars" aria-hidden="true">
-                  <span className="wave-bar bar-1" />
-                  <span className="wave-bar bar-2" />
-                  <span className="wave-bar bar-3" />
-                  <span className="wave-bar bar-4" />
-                </div>
-              )}
-              {inputText.trim() && (
-                <button type="submit" className="assistant-send-btn" aria-label="Send query">
-                  <Send size={18} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-
-            {isSpeaking && (
-              <button
-                type="button"
-                className="assistant-stop-audio-btn"
-                onClick={stopAudioPlayback}
-                aria-label="Stop audio speech playback (or press Escape)"
-              >
-                <VolumeX size={18} aria-hidden="true" /> Stop Audio
-              </button>
-            )}
-
-            <button
-              type="button"
-              className={`icon-button ${!voiceEnabled ? 'is-muted' : ''}`}
-              onClick={() => {
-                const next = !voiceEnabled
-                setVoiceEnabled(next)
-                if (!next) cancelSpeech()
-                announce(next ? 'Speech enabled' : 'Speech muted')
-              }}
-              aria-label={voiceEnabled ? 'Mute speech' : 'Enable speech'}
-              title={voiceEnabled ? 'Mute speech' : 'Enable speech'}
-            >
-              {voiceEnabled ? <Volume2 size={20} aria-hidden="true" /> : <VolumeX size={20} aria-hidden="true" />}
+              <Send size={16} aria-hidden="true" />
             </button>
           </form>
+
+          {isSpeaking && (
+            <button
+              type="button"
+              className="assistant-stop-audio-btn"
+              onClick={stopAudioPlayback}
+              aria-label="Stop audio narration (Shortcut: Escape)"
+              title="Stop audio (Escape)"
+            >
+              <VolumeX size={16} aria-hidden="true" />
+              <span>Stop Voice</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className={`tool-btn ${voiceEnabled ? 'active' : ''}`}
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            aria-label={voiceEnabled ? 'Mute speech output' : 'Enable speech output'}
+            title={voiceEnabled ? 'Speech on' : 'Speech muted'}
+          >
+            {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={cycleSpeechRate}
+            aria-label={`Speech rate: ${speechRate}x. Click to change`}
+            title={`Speech rate: ${speechRate}x`}
+          >
+            {speechRate}x
+          </button>
+
+          <button
+            type="button"
+            className={`tool-btn ${handsFreeMode ? 'active' : ''}`}
+            onClick={() => {
+              const next = !handsFreeMode
+              setHandsFreeMode(next)
+              announce(next ? 'Hands-free auto-listening mode enabled.' : 'Hands-free mode disabled.')
+            }}
+            aria-label={handsFreeMode ? 'Hands-free mode active' : 'Turn on hands-free mode'}
+            title="Hands-free auto-turn mode"
+          >
+            <Headphones size={16} />
+          </button>
         </div>
       </div>
-
-      {/* Blind Student Guidance Section */}
-      <section className="feature-section" aria-labelledby="assistant-shortcuts-heading">
-        <div className="feature-section-heading">
-          <h2 id="assistant-shortcuts-heading">Accessibility & Keyboard Shortcuts</h2>
-          <span className="sample-label">AUDIO FIRST</span>
-        </div>
-        <div className="shortcuts-grid">
-          <div className="shortcut-card">
-            <h3><kbd>Alt</kbd> + <kbd>A</kbd></h3>
-            <p>Opens the floating voice assistant drawer from any page and starts listening immediately.</p>
-          </div>
-          <div className="shortcut-card">
-            <h3><kbd>Escape</kbd></h3>
-            <p>Instantly interrupts and stops speech playback (Barge-in) and closes the modal.</p>
-          </div>
-          <div className="shortcut-card">
-            <h3><kbd>Space</kbd></h3>
-            <p>Activates the microphone when the microphone button is in keyboard focus.</p>
-          </div>
-          <div className="shortcut-card">
-            <h3>Audio Earcons</h3>
-            <p>Harmonic chimes indicate listening start, query processing, and action completion without visual cues.</p>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

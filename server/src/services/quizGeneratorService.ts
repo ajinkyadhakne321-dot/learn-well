@@ -1,7 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { env } from '../config/env.js'
-import { searchSyllabus } from './syllabusKnowledgeService.js'
-
 export interface GeneratedQuizQuestion {
   prompt: string
   answers: string[]
@@ -258,62 +254,5 @@ export async function generateQuizForSubject(
 ): Promise<GeneratedQuiz> {
   const detectedSubject = detectQuizSubject(subjectOrQuery)
   const defaultQuiz = BUILTIN_QUIZ_BANKS[detectedSubject] || BUILTIN_QUIZ_BANKS['software engineering']
-
-  // If Gemini API key is configured, generate dynamic questions using syllabus excerpts!
-  if (env.geminiApiKey) {
-    try {
-      const genAI = new GoogleGenerativeAI(env.geminiApiKey)
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.4,
-        },
-      })
-
-      const syllabusExcerpts = searchSyllabus(userPrompt || subjectOrQuery, undefined, 4)
-      const contextText = syllabusExcerpts
-        .map((m) => `[Source: ${m.title} Page ${m.page}]\n${m.snippet}`)
-        .join('\n\n')
-
-      const prompt = `You are an educational quiz generator for an accessible learning platform.
-Create a high-quality 4-question multiple-choice practice quiz for the student.
-Subject/Topic: "${subjectOrQuery}".
-
-Reference syllabus notes:
-${contextText}
-
-Format your output strictly as a JSON object matching this schema:
-{
-  "subject": "${detectedSubject}",
-  "title": "${subjectOrQuery.toUpperCase()} Practice Quiz",
-  "questions": [
-    {
-      "prompt": "Clear, concise question?",
-      "answers": ["Option A", "Option B", "Option C"],
-      "correctAnswer": 0,
-      "explanation": "Clear educational explanation."
-    }
-  ]
-}
-
-Ensure questions are direct, clear for screen readers, and have exactly 3 answer options each.
-correctAnswer must be the 0-indexed number (0, 1, or 2) of the correct option.`
-
-      const result = await model.generateContent(prompt)
-      const text = result.response.text()
-      const parsed = JSON.parse(text)
-      if (Array.isArray(parsed.questions) && parsed.questions.length >= 2) {
-        return {
-          subject: detectedSubject,
-          title: parsed.title || defaultQuiz.title,
-          questions: parsed.questions,
-        }
-      }
-    } catch (error) {
-      console.warn('Gemini quiz generation failed, using curated syllabus quiz bank:', error)
-    }
-  }
-
   return defaultQuiz
 }
