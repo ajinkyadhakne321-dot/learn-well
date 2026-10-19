@@ -1,0 +1,12 @@
+node_modules
+.git
+.github
+dist
+server/dist
+.env
+.env.*
+!.env.example
+uploads
+voice-agent
+*.log
+.DS_Store
