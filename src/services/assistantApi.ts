@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api'
+
 export type LearningMode =
   | 'Academic Learning'
   | 'Programming & Coding'
@@ -93,7 +95,7 @@ export async function sendAssistantMessage(
   context: AssistantRequestContext = {},
   options: SendAssistantMessageOptions = {}
 ): Promise<AssistantApiResponse> {
-  const response = await fetch('/api/assistant/chat', {
+  const response = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -125,7 +127,7 @@ export async function fetchAssistantStatus(): Promise<{
   modes?: string[]
   supportedActions: string[]
 }> {
-  const res = await fetch('/api/assistant/status')
+  const res = await fetch(`${API_BASE_URL}/api/assistant/status`)
   if (!res.ok) {
     throw new Error('Failed to retrieve assistant status')
   }
@@ -137,7 +139,7 @@ export async function generateAssistantQuiz(subject: string): Promise<{
   title: string
   questions: QuizQuestionItem[]
 }> {
-  const response = await fetch('/api/assistant/generate-quiz', {
+  const response = await fetch(`${API_BASE_URL}/api/assistant/generate-quiz`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subject }),

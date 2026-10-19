@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api'
+
 export type UserRole = 'student' | 'teacher'
 
 export type AuthUser = {
@@ -25,7 +27,7 @@ export class AuthApiError extends Error {
 async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`/api/auth/${path}`, {
+    response = await fetch(`${API_BASE_URL}/api/auth/${path}`, {
       method,
       credentials: 'include',
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -38,8 +40,8 @@ async function request<T>(path: string, method: 'GET' | 'POST', body?: unknown):
   const payload: T | ApiErrorResponse | undefined = response.status === 204
     ? undefined
     : await response.json().catch(() => undefined)
-  if (!response.ok) {
-    const message = (payload as ApiErrorResponse | undefined)?.error ?? 'The request could not be completed.'
+  if (!response.ok || (response.status !== 204 && !payload)) {
+    const message = (payload as ApiErrorResponse | undefined)?.error ?? 'The authentication service returned an invalid response. Check backend connection.'
     throw new AuthApiError(message, response.status)
   }
   return payload as T

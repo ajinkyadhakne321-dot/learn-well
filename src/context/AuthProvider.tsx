@@ -10,9 +10,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let active = true
-    authApi.currentUser().then(({ user: currentUser }) => {
+    authApi.currentUser().then((data) => {
       if (!active) return
-      setUser(currentUser)
+      if (!data || !data.user) {
+        setUser(null)
+        setStatus('unauthenticated')
+        setError('')
+        return
+      }
+      setUser(data.user)
       setStatus('authenticated')
       setError('')
     }).catch((requestError: unknown) => {

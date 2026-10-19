@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../../config/api'
 import { useAuth } from '../../context/AuthContext'
 import {
   platformApi,
@@ -853,7 +854,7 @@ export function TeacherDashboardPage() {
                               <td>{m.course_code || 'General'}</td>
                               <td>{m.subject} · {m.topic}</td>
                               <td>{m.format}</td>
-                              <td>{m.file_name ? <a href={`/api/materials/${m.id}/download`} download>{m.file_name}</a> : 'Text only'}</td>
+                              <td>{m.file_name ? <a href={`${API_BASE_URL}/api/materials/${m.id}/download`} download>{m.file_name}</a> : 'Text only'}</td>
                               <td>
                                 <button
                                   type="button"
@@ -1916,7 +1917,7 @@ export function TeacherDashboardPage() {
                         </td>
                         <td>
                           {sub.file_name ? (
-                            <a href={`/api/assignments/submissions/${sub.id}/download`} download>
+                            <a href={`${API_BASE_URL}/api/assignments/submissions/${sub.id}/download`} download>
                               {sub.file_name}
                             </a>
                           ) : (

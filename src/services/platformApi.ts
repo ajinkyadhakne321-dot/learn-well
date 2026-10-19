@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api'
+
 export type Course = {
   id: string
   code: string
@@ -207,7 +209,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   let response: Response
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(`${API_BASE_URL}/api${path}`, {
       ...options,
       credentials: 'include',
       headers,

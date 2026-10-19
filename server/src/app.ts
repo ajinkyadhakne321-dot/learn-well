@@ -35,6 +35,8 @@ function isAllowedOrigin(origin?: string, reqHost?: string): boolean {
     if (
       (reqHost && (url.host === reqHost || url.hostname === reqHost)) ||
       url.hostname.endsWith('.onrender.com') ||
+      url.hostname.endsWith('.web.app') ||
+      url.hostname.endsWith('.firebaseapp.com') ||
       url.hostname.endsWith('.vercel.app') ||
       url.hostname.endsWith('.trycloudflare.com') ||
       url.hostname.endsWith('.loca.lt') ||
@@ -85,8 +87,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: 'auto',
-    sameSite: 'lax',
+    secure: env.nodeEnv === 'production',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
     maxAge: 8 * 60 * 60 * 1000,
   },
 }))
